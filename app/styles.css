@@ -1,0 +1,388 @@
+/* style.css */
+
+/* ---------------------------------------------
+   Reset y estilos globales
+   --------------------------------------------- */
+   * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    font-family: monospace;
+    margin: 20px;
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    background-color: #f5f5f5;
+  }
+  
+  /* ---------------------------------------------
+     Contenedores principales
+     --------------------------------------------- */
+  .formulario {
+    width: 400px;
+  }
+  
+  .contenedor-salida {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  /* ---------------------------------------------
+     Formularios y etiquetas
+     --------------------------------------------- */
+  .formulario h2 {
+    margin-bottom: 8px;
+  }
+  
+  label {
+    margin-top: 6px;
+    font-weight: bold;
+  }
+  
+  input[type="text"],
+  select {
+    width: 100%;
+    padding: 6px 8px;
+    margin-top: 4px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  /* ---------------------------------------------
+     Botones generales
+     --------------------------------------------- */
+  button {
+    margin-top: 10px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid #888;
+    border-radius: 4px;
+    background-color: #eee;
+    transition: background-color 0.2s;
+  }
+  
+  button:hover {
+    background-color: #ddd;
+  }
+  
+  /* ---------------------------------------------
+     Botones de categoría y medio 
+     --------------------------------------------- */
+  .boton-grupo button {
+    position: relative;
+    margin-right: 8px;
+    padding-right: 24px; /* espacio para el check */
+  }
+  
+  .boton-grupo button.active {
+    background-color: #cceeff;
+    border-color: #66bbff;
+  }
+  
+  /* Span de check asociado a cada botón */
+  .check-icon {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    color: green;
+    font-weight: bold;
+    font-size: 18px;
+  }
+  
+  .boton-grupo button.active .check-icon {
+    display: block;
+  }
+  
+  /* ---------------------------------------------
+     Contenedor de texto de salida
+     --------------------------------------------- */
+  .contenedor-texto {
+    border: 1px solid #ccc;
+    padding: 15px;
+    white-space: pre-wrap;
+    width: 400px;
+    height: 450px;
+    overflow-y: auto;
+    background-color: #fff;
+  }
+  
+  .contenedor-texto[contenteditable="true"]:focus {
+    outline: 2px dashed #aaa;
+  }
+  
+  /* ---------------------------------------------
+     Validaciones (alerta en inputs)
+     --------------------------------------------- */
+  .input-alerta {
+    border: 2px solid red !important;
+    background-color: #ffecec;
+  }
+  
+  .icono-alerta {
+    display: inline-block;
+    color: red;
+    font-weight: bold;
+    margin-left: 5px;
+  }
+  
+  /* ---------------------------------------------
+     Inputs datalist / buscador de servicios
+     --------------------------------------------- */
+  #buscadorServicio {
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  
+  /* ---------------------------------------------
+     Ocultar/mostrar dinámicamente
+     --------------------------------------------- */
+  .hidden {
+    display: none !important;
+  }
+  
+  /* ---------------------------------------------
+     Ajuste adicional para “boton-grupo” 
+     y espaciado
+     --------------------------------------------- */
+  .boton-grupo {
+    margin-bottom: 10px;
+  }
+
+.modal:not(.hidden) { display: flex; }
+
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+
+
+@media (max-width: 640px) {
+  .lista-drops { grid-template-columns: 1fr; }
+}
+
+.modal-subtitle {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  margin: 8px 0 4px;
+  color: #222;
+}
+
+label.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+label.row input[type="checkbox"] {
+  transform: translateY(1px);
+}
+
+.lista-drops .row input[type="number"],
+#ecs300m {
+  width: 120px;
+  padding: 4px 6px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}
+/* ===== /Modal (Drops) ===== */
+
+/* ===== Modal Drops (ordenado) ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.45);
+  z-index: 1000;
+}
+.modal:not(.hidden) { display: flex; }
+
+.modal-content {
+  background: #fff;
+  width: min(760px, 94vw);
+  max-height: 88vh;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.22);
+  border: 1px solid #e6e8ee;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eef0f4;
+  background: #fbfcfe;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+.modal-close {
+  background: #fff;
+  border: 1px solid #d7dbe2;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.lista-drops {
+  padding: 14px 16px;
+  overflow: auto;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 10px 16px;
+}
+
+.grid-drops {
+  display: grid;
+  grid-template-columns:  1fr;
+  gap: 8px 18px;
+}
+
+
+.modal-subtitle {
+  font-weight: 600;
+  color: #111827;
+  margin: 6px 0 4px;
+}
+
+label.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: normal;
+}
+
+label.row input[type="checkbox"] {
+  transform: translateY(1px);
+}
+
+#ecs300m {
+  width: 120px;
+  padding: 4px 6px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid #eef0f4;
+  background: #fbfcfe;
+}
+
+#btnListaDrops { margin-top: 8px; }
+
+
+/* Cantidad para accesorios en el modal */
+.extra-qty {
+  width: 70px;
+  margin-left: 8px;
+  padding: 4px 6px;
+}
+
+
+/* === Card genérica (si ya tienes una, puedes omitir o ajustar) === */
+.card {
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.05);
+}
+
+.card-title {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+/* Panel retirados */
+.ret-group { margin-top: 6px; }
+.lbl { display:block; font-size: 13px; color:#444; margin:8px 0 4px; }
+.mt8 { margin-top: 8px; }
+.mt12 { margin-top: 12px; }
+.w100 { width: 100%; }
+
+/* Mostrar solo el grupo del medio activo */
+#ret-ftth, #ret-hfc { display: none; }
+#retiradosBox.show-ftth #ret-ftth { display: block; }
+#retiradosBox.show-hfc  #ret-hfc  { display: block; }
+
+
+
+
+/* Layout de los dos cuadros */
+.equipos-dos-col{
+  display:grid;
+  /* Cada columna tendrá como mínimo 300px; si hay más espacio, crecen a 1fr */
+  grid-template-columns: repeat(2, minmax(300px, 1fr));
+  gap:14px;
+  align-items:flex-start;
+  margin-bottom:12px;
+}
+
+/* Caja visual de cada grupo */
+.equipos-box{
+  background:#fff;
+  border:1px solid #ddd;
+  border-radius:10px;
+  padding:12px 14px;              /* un poco más de aire */
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+.equipos-box h4{
+  margin:0 0 10px;
+  font-size:14px;
+  font-weight:600;
+  color:#333;
+}
+
+/* Columna “retirados” en versión compacta (ligeramente más chica, pero legible) */
+.equipos-box.compact label{ font-size:12.5px; }
+.equipos-box.compact select,
+.equipos-box.compact input{
+  font-size:13px;
+  padding:5px 8px;
+  height:32px;
+}
+.equipos-box.compact .serie-grupo input{
+  width: 100%;                    /* un poquito más ancho */
+}
+
+/* Si la pantalla/columna no da el ancho, se apilan en 1 sola columna
+   para que cada cuadro ocupe todo el ancho disponible y se vea más grande */
+@media (max-width: 1200px){
+  .equipos-dos-col{ grid-template-columns: 1fr; }
+}

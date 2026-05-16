@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Administrar Servicios y Equipos</title>
+
+  <!-- Estilos originales -->
+  <link rel="stylesheet" href="styles/admin.css">
+  <link rel="stylesheet" href="styles/components.css">
+
+  <!-- Compact/scroll solo para las tablas -->
+  <style>
+    .container{max-width: 1100px; margin: 20px auto;}
+    .section-title{margin: 18px 0 8px; font-weight: bold;}
+    .table-scroll{
+      max-height: 380px;          /* altura visible */
+      overflow: auto;             /* scroll vertical */
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .table-scroll table{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;            /* compacta */
+    }
+    .table-scroll th, .table-scroll td{
+      padding: 6px 8px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+    .table-scroll thead th{
+      position: sticky;
+      top: 0;
+      background: #f7f7f7;
+      z-index: 1;
+      border-bottom: 1px solid #d0d0d0;
+    }
+    .acciones-btn{
+      padding: 3px 8px;
+      font-size: 12px;
+      margin-right: 6px;
+    }
+    .row-actions{display:flex; gap:8px; flex-wrap: wrap; margin: 10px 0 12px;}
+  </style>
+
+  <!-- XLSX para exportaciones/importaciones -->
+  <script src="vendor/xlsx.full.min.js"></script>
+
+  <!-- Data de proyecto -->
+  <script src="src/data/categorias-servicio.js"></script>
+  <script src="src/data/materiales-servicio.js"></script>
+  <script src="src/data/globals-alias.js"></script>
+  <script src="src/logic/license.js"></script>
+
+  <!-- Lógica -->
+  <script src="admin/admin.js" defer></script>
+  <script src="admin/admin-export.js" defer></script>
+  <script src="admin/admin-import.js" defer></script>
+  <script src="admin/admin-export-all.js" defer></script>
+</head>
+<body>
+  <div id="activationGate" class="activation-gate hidden">
+    <div class="activation-card">
+      <h1>Activación del sistema</h1>
+      <p>Activa primero la licencia para usar el panel de administración.</p>
+
+      <label for="machineIdField">ID_PC</label>
+      <div class="activation-row">
+        <input type="text" id="machineIdField" data-machine-id readonly />
+        <button type="button" id="copyMachineIdButton">Copiar ID_PC</button>
+      </div>
+
+      <label for="licenseCodeInput">Código de licencia</label>
+      <textarea id="licenseCodeInput" rows="4" placeholder="ID_PC|FECHA_VENCIMIENTO|PLAN|FIRMA"></textarea>
+
+      <div class="activation-actions">
+        <button type="button" id="activateLicenseButton">Activar sistema</button>
+      </div>
+
+      <div id="activationStatus" class="activation-status"></div>
+    </div>
+  </div>
+
+  <div id="appShell" class="hidden">
+  <div class="container">
+    <div class="admin-topbar">
+      <div>
+        <h1 class="admin-title">Administración del sistema</h1>
+        <p class="admin-subtitle">Gestiona servicios, materiales, modelos y retirados desde un solo lugar.</p>
+      </div>
+      <a class="volver volver-top" href="index.html">Volver a pantalla principal</a>
+    </div>
+
+    <h2>Administrar Servicios / Materiales</h2>
+
+    <label for="medioSelect">Medio:</label>
+    <select id="medioSelect">
+      <option value="hfc">HFC</option>
+      <option value="ftth">FTTH</option>
+    </select>
+
+    <label for="categoriaSelect">Categoría:</label>
+    <select id="categoriaSelect">
+      <option value="instalacion">Instalación</option>
+      <option value="mantenimiento">Mantenimiento</option>
+      <option value="postventa">Postventa</option>
+    </select>
+
+    <label for="servicioInput">Descripción del Servicio:</label>
+    <input type="text" id="servicioInput" placeholder="Ejemplo: SE REALIZA INSTALACION DE XXXXXX" />
+
+    <label for="materialesTextarea">Materiales (uno por línea, opcional):</label>
+    <textarea id="materialesTextarea" placeholder="1002950 - Atador...&#10;1051091 - Protector..."></textarea>
+
+    <input type="hidden" id="editIndex" value="-1" />
+
+    <div class="row-actions">
+      <button type="button" id="saveServiceButton">Guardar Servicio</button>
+      <button type="button" id="btnExportServiciosXLSX">Descargar servicios (XLSX)</button>
+      <button type="button" id="btnExportServiciosTXT">Descargar servicios (TXT)</button>
+      <button type="button" id="btnExportServiciosALL_XLSX">Descargar TODO (Servicios XLSX)</button>
+      <button type="button" id="btnExportServiciosALL_TXT">Descargar TODO (Servicios TXT)</button>
+      <button type="button" id="btnImportServicios">Cargar servicios (XLSX/TXT)</button>
+      <button type="button" id="btnClearServicios" style="background-color:#d00;color:#fff;">Borrar todos los servicios</button>
+    </div>
+
+    <div class="section-title">Servicios Registrados</div>
+    <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+      <select id="filtroMedioServicios" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Medios</option>
+      </select>
+      <select id="filtroCategoriaServicios" style="padding: 4px; font-size: 12px;">
+        <option value="">Todas las Categorías</option>
+      </select>
+      <select id="filtroDescripcionServicios" style="padding: 4px; font-size: 12px;">
+        <option value="">Todas las Descripciones</option>
+      </select>
+    </div>
+    <div class="table-scroll">
+      <table id="tablaServicios">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Medio</th>
+            <th>Categoría</th>
+            <th>Descripción</th>
+            <th>Materiales</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <hr />
+
+    <h2>Administrar Modelos de Equipos</h2>
+
+    <label for="medioEquipoSelect">Medio del Equipo:</label>
+    <select id="medioEquipoSelect">
+      <option value="hfc">HFC</option>
+      <option value="ftth">FTTH</option>
+    </select>
+
+    <label for="tipoEquipoSelect">Tipo de Equipo:</label>
+    <select id="tipoEquipoSelect">
+      <option value="equipo">MTA/Router</option>
+      <option value="deco">Decodificador/IPTV</option>
+      <option value="repetidor">Repetidor</option>
+    </select>
+
+    <label for="equipoInput">Descripción del Modelo de Equipo:</label>
+    <input type="text" id="equipoInput" placeholder="Ejemplo: ROUTER HG8245W5-6T DUAL BAND 4x4" />
+
+    <input type="hidden" id="editEquipoIndex" value="-1" />
+
+    <div class="row-actions">
+      <button type="button" id="saveEquipoButton">Guardar Modelo</button>
+      <button type="button" id="btnExportEquiposXLSX">Descargar equipos (XLSX)</button>
+      <button type="button" id="btnExportEquiposTXT">Descargar equipos (TXT)</button>
+      <button type="button" id="btnImportEquipos">Cargar equipos (XLSX/TXT)</button>
+      <button type="button" id="btnClearEquipos" style="background-color:#d00;color:#fff;">Borrar todos los equipos instalados</button>
+    </div>
+
+    <div class="section-title">Modelos de Equipos Registrados</div>
+    <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+      <select id="filtroMedioEquipos" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Medios</option>
+      </select>
+      <select id="filtroTipoEquipos" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Tipos</option>
+      </select>
+      <select id="filtroModeloEquipos" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Modelos</option>
+      </select>
+    </div>
+    <div class="table-scroll">
+      <table id="tablaEquipos">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Medio</th>
+            <th>Tipo</th>
+            <th>Modelo</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <hr />
+
+    <h2>Administrar Equipos Retirados</h2>
+
+    <label for="medioRetSelect">Medio:</label>
+    <select id="medioRetSelect">
+      <option value="hfc">HFC</option>
+      <option value="ftth">FTTH</option>
+    </select>
+
+    <label for="tipoRetSelect">Tipo:</label>
+    <select id="tipoRetSelect">
+      <option value="equipo">MTA/Router</option>
+      <option value="deco">Decodificador/IPTV</option>
+      <option value="repetidor">Repetidor</option>
+    </select>
+
+    <label for="retiradoInput">Modelo retirado:</label>
+    <input type="text" id="retiradoInput" placeholder="Ejemplo: MTA TC8717T, Deco XG-6828, etc." />
+
+    <input type="hidden" id="editRetIndex" value="-1" />
+
+    <div class="row-actions">
+      <button type="button" id="saveRetButton">Guardar Retirado</button>
+      <button type="button" id="btnExportRetiradosXLSX">Descargar retirados (XLSX)</button>
+      <button type="button" id="btnExportRetiradosTXT">Descargar retirados (TXT)</button>
+      <button type="button" id="btnImportRetirados">Cargar retirados (XLSX/TXT)</button>
+      <button type="button" id="btnClearRetirados" style="background-color:#d00;color:#fff;">Borrar todos los retirados</button>
+    </div>
+
+    <div class="section-title">Equipos Retirados Registrados</div>
+    <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+      <select id="filtroMedioRetirados" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Medios</option>
+      </select>
+      <select id="filtroTipoRetirados" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Tipos</option>
+      </select>
+      <select id="filtroModeloRetirados" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Modelos</option>
+      </select>
+    </div>
+    <div class="table-scroll">
+      <table id="tablaRetirados">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Medio</th>
+            <th>Tipo</th>
+            <th>Modelo</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+</body>
+</html>
