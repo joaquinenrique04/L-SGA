@@ -374,6 +374,29 @@ function _aplicarFilaExcel(row, target) {
   return true;
 }
 
+function limpiarSeriesSotAnterior() {
+  const seriesIds = [
+    'serieMta',
+    'serieDeco1', 'serieDeco2', 'serieDeco3', 'serieDeco4', 'serieDeco5',
+    'serieRep1', 'serieRep2',
+    'retSerieEq',
+    'retSerieDeco1', 'retSerieDeco2', 'retSerieDeco3', 'retSerieDeco4', 'retSerieDeco5',
+    'retSerieRep1', 'retSerieRep2'
+  ];
+
+  seriesIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = '';
+    el.classList?.remove('input-alerta');
+  });
+
+  ['iconoAlertaMta', 'iconoAlertaDeco', 'iconoAlertaRep'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
 // ---- NUEVA buscarDatos ----
 function buscarDatos() {
   const el = _getSotInput();
@@ -390,6 +413,7 @@ function buscarDatos() {
   if (typeof window.highlightExcelViewerRow === 'function') {
     window.highlightExcelViewerRow(target);
   }
+  limpiarSeriesSotAnterior();
   _aplicarFilaExcel(row, el);
 }
 window.buscarDatos = buscarDatos;
@@ -416,6 +440,7 @@ window.quitarCodigoMantenimiento = quitarCodigoMantenimiento;
 window.resetCodigosMantenimiento = resetCodigosMantenimiento;
 window.normalizaServicio = normalizaServicio;
 window.obtenerMateriales = obtenerMateriales;
+window.limpiarSeriesSotAnterior = limpiarSeriesSotAnterior;
 window.buscarDatos = buscarDatos;
 
 
