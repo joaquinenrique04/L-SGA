@@ -15,6 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
     catch{ return []; }
   }
   function writeLS(key, arr){ localStorage.setItem(key, JSON.stringify(arr||[])); }
+  function readObjectLS(key){
+    try{
+      const raw = localStorage.getItem(key);
+      const obj = raw ? JSON.parse(raw) : {};
+      return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
+    } catch { return {}; }
+  }
+  function writeObjectLS(key, obj){ localStorage.setItem(key, JSON.stringify(obj || {})); }
 
   /* ---------- migración a catálogo unificado ---------- */
   (function migrate(){
@@ -124,6 +132,203 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveEquipoButton     = $('saveEquipoButton');
   const tablaEquiposBody     = document.querySelector('#tablaEquipos tbody');
   const editEquipoIndexInput = $('editEquipoIndex');
+  const editEquipoKeyOriginalInput = $('editEquipoKeyOriginal');
+  const materialesEquipoPanel = $('materialesEquipoPanel');
+  const buscarMaterialEquipoInput = $('buscarMaterialEquipoInput');
+  const filtroUnidadMaterialEquipo = $('filtroUnidadMaterialEquipo');
+  const tablaMaterialesEquipoBody = document.querySelector('#tablaMaterialesEquipo tbody');
+
+  function tipoEquipoKey(medio, tipo){
+    const m = low(medio);
+    const t = low(tipo);
+    if (t === 'equipo') return m === 'hfc' ? 'MTA' : 'Router';
+    if (t === 'deco') return m === 'hfc' ? 'Decodificador' : 'IPTV';
+    if (t === 'repetidor') return 'Repetidor';
+    return t;
+  }
+
+  function getEquipoKey(medio, tipo, modelo) {
+    return `${medio}::${tipoEquipoKey(medio, tipo)}::${modelo}`.trim().toUpperCase();
+  }
+
+  function parseMaterialLinea(linea){
+    const texto = norm(linea).replace(/\s*\[.*?\]\s*$/g, '');
+    if (!texto) return null;
+    const sinCantidad = texto.replace(/\s*(?::|x)\s*\d+\s*$/i, '').trim();
+    const match = sinCantidad.match(/^(\d{5,})\s*-\s*(.+)$/);
+    const nombre = match ? match[2].trim() : sinCantidad;
+    if (!nombre) return null;
+    return {
+      codigo: match ? match[1].trim() : '',
+      nombre,
+      unidad: 'UNIDAD'
+    };
+  }
+
+  function obtenerCatalogoMaterialesUnico(){
+    const materiales = [];
+    const agregar = (linea) => {
+      const item = parseMaterialLinea(linea);
+      if (item) materiales.push(item);
+    };
+
+    try {
+      Object.values(window.materialesPorServicio || {}).forEach(lista => {
+        if (Array.isArray(lista)) lista.forEach(agregar);
+      });
+    } catch {}
+
+    readLS('customServices').forEach(servicio => {
+      if (Array.isArray(servicio.materiales)) servicio.materiales.forEach(agregar);
+    });
+
+    [
+      '8000181 - APP ACTIVA CHIP CLARO PERU',
+      '1063021 - CONECTOR RJ 11',
+      '1051697 - CONTROL REMOTO AN-4803 ECOSS',
+      '1040714 - CONTROL REMOTO SMK HFC',
+      '1004838 - CABLE HDMI CHD1-6 MALE TO MALE',
+      'CONTROL AMCO',
+      'CONECTOR RJ45'
+    ].forEach(agregar);
+
+    const map = new Map();
+    materiales.forEach(item => {
+      const key = item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`;
+      if (!map.has(key)) map.set(key, item);
+    });
+    return Array.from(map.values()).sort((a,b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  }
+
+  function cargarMaterialesAutomaticosPorEquipo(){
+    return readObjectLS('materialesAutomaticosPorEquipo');
+  }
+
+  function guardarMaterialesAutomaticosPorEquipo(data){
+    writeObjectLS('materialesAutomaticosPorEquipo', data);
+  }
+
+  function materialesConfiguradosParaKey(key){
+    const data = cargarMaterialesAutomaticosPorEquipo();
+    return Array.isArray(data[key]) ? data[key] : [];
+  }
+
+  function leerMaterialesDesdeTabla(){
+    const out = [];
+    tablaMaterialesEquipoBody?.querySelectorAll('input[data-material-key]').forEach(input => {
+      const cantidad = parseInt(input.value || '0', 10);
+      if (!Number.isInteger(cantidad) || cantidad <= 0) return;
+      out.push({
+        codigo: input.dataset.codigo || '',
+        nombre: input.dataset.nombre || '',
+        cantidad,
+        unidad: input.dataset.unidad || 'UNIDAD'
+      });
+    });
+    return out;
+  }
+
+  function guardarMaterialesDelEquipo(key){
+    if (!key) return;
+    const data = cargarMaterialesAutomaticosPorEquipo();
+    const materiales = leerMaterialesDesdeTabla();
+    if (materiales.length) data[key] = materiales;
+    else delete data[key];
+    guardarMaterialesAutomaticosPorEquipo(data);
+  }
+
+  function renderMaterialesParaEquipoEditado(equipo){
+    if (!tablaMaterialesEquipoBody || !materialesEquipoPanel) return;
+    const key = getEquipoKey(equipo.medio, equipo.tipo, equipo.modelo);
+    const asignados = new Map(materialesConfiguradosParaKey(key).map(item => {
+      const itemKey = item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`;
+      return [itemKey, item];
+    }));
+    const filtro = up(buscarMaterialEquipoInput?.value || '');
+    const unidadFiltro = up(filtroUnidadMaterialEquipo?.value || '');
+    const catalogo = obtenerCatalogoMaterialesUnico();
+
+    tablaMaterialesEquipoBody.innerHTML = '';
+    catalogo
+      .filter(item => {
+        const texto = up(`${item.codigo} ${item.nombre}`);
+        const unidad = up(item.unidad || 'UNIDAD');
+        return (!filtro || texto.includes(filtro)) && (!unidadFiltro || unidad === unidadFiltro);
+      })
+      .forEach(item => {
+        const itemKey = item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`;
+        const actual = asignados.get(itemKey);
+        const cantidad = actual ? parseInt(actual.cantidad || 0, 10) : 0;
+        const tr = document.createElement('tr');
+        if (cantidad > 0) tr.classList.add('auto-material-activo');
+
+        const tdMat = document.createElement('td');
+        tdMat.textContent = `${item.codigo ? `${item.codigo} - ` : ''}${item.nombre}`;
+        const tdCant = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.step = '1';
+        input.className = 'auto-material-cantidad';
+        input.value = cantidad > 0 ? String(cantidad) : '';
+        input.dataset.materialKey = itemKey;
+        input.dataset.codigo = item.codigo || '';
+        input.dataset.nombre = item.nombre || '';
+        input.dataset.unidad = item.unidad || 'UNIDAD';
+        input.addEventListener('input', () => {
+          const val = parseInt(input.value || '0', 10);
+          if (val < 0) input.value = '0';
+          tr.classList.toggle('auto-material-activo', parseInt(input.value || '0', 10) > 0);
+        });
+        tdCant.appendChild(input);
+        const tdUnidad = document.createElement('td');
+        tdUnidad.textContent = item.unidad || 'UNIDAD';
+        tr.append(tdMat, tdCant, tdUnidad);
+        tablaMaterialesEquipoBody.appendChild(tr);
+      });
+  }
+
+  function poblarFiltroUnidadesMateriales(){
+    if (!filtroUnidadMaterialEquipo) return;
+    const actual = filtroUnidadMaterialEquipo.value;
+    const unidades = new Set(obtenerCatalogoMaterialesUnico().map(item => item.unidad || 'UNIDAD'));
+    filtroUnidadMaterialEquipo.innerHTML = '<option value="">Todas</option>';
+    unidades.forEach(unidad => {
+      const opt = document.createElement('option');
+      opt.value = unidad;
+      opt.textContent = unidad;
+      filtroUnidadMaterialEquipo.appendChild(opt);
+    });
+    filtroUnidadMaterialEquipo.value = actual;
+  }
+
+  function mostrarPanelMaterialesEquipo(equipo){
+    if (!materialesEquipoPanel) return;
+    materialesEquipoPanel.classList.remove('hidden');
+    poblarFiltroUnidadesMateriales();
+    renderMaterialesParaEquipoEditado(equipo);
+  }
+
+  function ocultarPanelMaterialesEquipo(){
+    if (materialesEquipoPanel) materialesEquipoPanel.classList.add('hidden');
+    if (tablaMaterialesEquipoBody) tablaMaterialesEquipoBody.innerHTML = '';
+    if (buscarMaterialEquipoInput) buscarMaterialEquipoInput.value = '';
+    if (filtroUnidadMaterialEquipo) filtroUnidadMaterialEquipo.value = '';
+    if (editEquipoKeyOriginalInput) editEquipoKeyOriginalInput.value = '';
+  }
+
+  function refrescarMaterialesEquipoEditado(){
+    const idx = parseInt(editEquipoIndexInput?.value || '-1', 10);
+    if (idx < 0) return;
+    renderMaterialesParaEquipoEditado({
+      medio: medioEquipoSelect.value,
+      tipo: tipoEquipoSelect.value,
+      modelo: equipoInput.value
+    });
+  }
+
+  buscarMaterialEquipoInput?.addEventListener('input', refrescarMaterialesEquipoEditado);
+  filtroUnidadMaterialEquipo?.addEventListener('change', refrescarMaterialesEquipoEditado);
 
   function renderizarEquipos(){
     const cat = readCatalog().filter(x => x.aplica === 'instalado');
@@ -131,9 +336,10 @@ document.addEventListener('DOMContentLoaded', () => {
     tbody.innerHTML='';
     if (!cat.length){
       const tr=document.createElement('tr'); const td=document.createElement('td');
-      td.colSpan=5; td.style.textAlign='center'; td.textContent='No hay modelos de equipos registrados.';
+      td.colSpan=6; td.style.textAlign='center'; td.textContent='No hay modelos de equipos registrados.';
       tr.appendChild(td); tbody.appendChild(tr); return;
     }
+    const materialesData = cargarMaterialesAutomaticosPorEquipo();
     cat.forEach((it, idx)=>{
       const tr=document.createElement('tr');
       const c=(t)=>{ const td=document.createElement('td'); td.textContent=t; tr.appendChild(td); };
@@ -143,17 +349,25 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (it.tipo==='repetidor') textoTipo='Repetidor';
       c(textoTipo);
       c(it.modelo||'');
+      const key = getEquipoKey(it.medio, it.tipo, it.modelo);
+      const totalMateriales = Array.isArray(materialesData[key]) ? materialesData[key].length : 0;
+      c(totalMateriales ? `Materiales auto: ${totalMateriales}` : '');
       const tdAcc=document.createElement('td');
       const bE=document.createElement('button'); bE.textContent='Editar'; bE.className='acciones-btn';
       bE.onclick=()=>{
         medioEquipoSelect.value = low(it.medio); tipoEquipoSelect.value = low(it.tipo);
         equipoInput.value = it.modelo; editEquipoIndexInput.value = String(idx);
+        editEquipoKeyOriginalInput.value = getEquipoKey(it.medio, it.tipo, it.modelo);
         saveEquipoButton.textContent='Actualizar Modelo';
+        mostrarPanelMaterialesEquipo(it);
       };
       const bD=document.createElement('button'); bD.textContent='Eliminar'; bD.className='acciones-btn eliminar';
       bD.onclick=()=>{
         if (!confirm('¿Eliminar este modelo?')) return;
         const arr = readCatalog().filter(x => !(x.aplica==='instalado' && low(x.medio)===low(it.medio) && low(x.tipo)===low(it.tipo) && up(x.modelo)===up(it.modelo)));
+        const materiales = cargarMaterialesAutomaticosPorEquipo();
+        delete materiales[getEquipoKey(it.medio, it.tipo, it.modelo)];
+        guardarMaterialesAutomaticosPorEquipo(materiales);
         writeCatalog(arr); renderizarEquipos();
       };
       tdAcc.append(bE,bD); tr.appendChild(tdAcc); tbody.appendChild(tr);
@@ -167,12 +381,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const arr = readCatalog();
     const idx = parseInt(editEquipoIndexInput.value,10);
     const nuevo = { medio, tipo, modelo, aplica: 'instalado' };
+    const nuevoKey = getEquipoKey(medio, tipo, modelo);
     if (idx>=0){
       // buscar elemento filtrado por 'instalado' con mismo índice visual
       const filtered = arr.filter(x => x.aplica==='instalado');
       const target = filtered[idx];
       const pos = arr.findIndex(x => x===target);
       if (pos>=0) arr[pos] = nuevo;
+      const oldKey = editEquipoKeyOriginalInput?.value || (target ? getEquipoKey(target.medio, target.tipo, target.modelo) : '');
+      if (oldKey && oldKey !== nuevoKey) {
+        const materiales = cargarMaterialesAutomaticosPorEquipo();
+        delete materiales[oldKey];
+        guardarMaterialesAutomaticosPorEquipo(materiales);
+      }
+      guardarMaterialesDelEquipo(nuevoKey);
       saveEquipoButton.textContent='Guardar Modelo';
     } else {
       // evitar duplicados exactos
@@ -182,168 +404,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     writeCatalog(arr);
     equipoInput.value=''; editEquipoIndexInput.value='-1';
+    ocultarPanelMaterialesEquipo();
     renderizarEquipos();
     poblarFiltrosEquipos();
   });
-
-  /* ===================== REGLAS DE MATERIALES AUTOMATICOS ===================== */
-  const REGLAS_MATERIALES_KEY = 'reglasMaterialesPorEquipo';
-  const reglaTipoEquipoSelect = $('reglaTipoEquipoSelect');
-  const reglaMedioSelect      = $('reglaMedioSelect');
-  const reglaCondicionInput   = $('reglaCondicionInput');
-  const reglaExclusionInput   = $('reglaExclusionInput');
-  const reglaMaterialInput    = $('reglaMaterialInput');
-  const reglaCodigoInput      = $('reglaCodigoInput');
-  const reglaCantidadInput    = $('reglaCantidadInput');
-  const reglaActivoSelect     = $('reglaActivoSelect');
-  const editReglaIndexInput   = $('editReglaIndex');
-  const saveReglaButton       = $('saveReglaButton');
-  const clearReglaButton      = $('clearReglaButton');
-  const tablaReglasBody       = document.querySelector('#tablaReglasMateriales tbody');
-
-  function readReglasMateriales(){
-    return readLS(REGLAS_MATERIALES_KEY);
-  }
-
-  function writeReglasMateriales(arr){
-    writeLS(REGLAS_MATERIALES_KEY, arr);
-  }
-
-  function limpiarFormularioRegla(){
-    if (reglaTipoEquipoSelect) reglaTipoEquipoSelect.value = '';
-    if (reglaMedioSelect) reglaMedioSelect.value = 'ambos';
-    if (reglaCondicionInput) reglaCondicionInput.value = '';
-    if (reglaExclusionInput) reglaExclusionInput.value = '';
-    if (reglaMaterialInput) reglaMaterialInput.value = '';
-    if (reglaCodigoInput) reglaCodigoInput.value = '';
-    if (reglaCantidadInput) reglaCantidadInput.value = '1';
-    if (reglaActivoSelect) reglaActivoSelect.value = 'true';
-    if (editReglaIndexInput) editReglaIndexInput.value = '-1';
-    if (saveReglaButton) saveReglaButton.textContent = 'Guardar Regla';
-  }
-
-  function validarReglaMaterial(regla){
-    if (!regla.tipoEquipo) return 'Debes seleccionar el tipo de equipo.';
-    if (!regla.condicionModelo) return 'Debes escribir la condición del modelo.';
-    if (!regla.nombreMaterial) return 'Debes escribir el material automático.';
-    if (!Number.isInteger(regla.cantidadPorEquipo) || regla.cantidadPorEquipo <= 0) {
-      return 'La cantidad por equipo debe ser un número entero mayor a 0.';
-    }
-    return '';
-  }
-
-  function renderizarReglasMateriales(){
-    if (!tablaReglasBody) return;
-    const reglas = readReglasMateriales();
-    tablaReglasBody.innerHTML = '';
-    if (!reglas.length) {
-      const tr = document.createElement('tr');
-      const td = document.createElement('td');
-      td.colSpan = 9;
-      td.style.textAlign = 'center';
-      td.textContent = 'No hay reglas de materiales automáticos registradas.';
-      tr.appendChild(td);
-      tablaReglasBody.appendChild(tr);
-      return;
-    }
-
-    reglas.forEach((regla, idx) => {
-      const tr = document.createElement('tr');
-      const c = (text) => {
-        const td = document.createElement('td');
-        td.textContent = text;
-        tr.appendChild(td);
-      };
-      c(idx + 1);
-      c(up(regla.tipoEquipo));
-      c(up(regla.medio || 'ambos'));
-      c(regla.condicionModelo || '');
-      c(regla.excluirSiContiene || '');
-      c(`${regla.codigoMaterial ? `${regla.codigoMaterial} - ` : ''}${regla.nombreMaterial || ''}`);
-      c(String(regla.cantidadPorEquipo || 0));
-      c(regla.activo === false ? 'Inactivo' : 'Activo');
-
-      const tdAcc = document.createElement('td');
-      const bE = document.createElement('button');
-      bE.textContent = 'Editar';
-      bE.className = 'acciones-btn';
-      bE.onclick = () => {
-        reglaTipoEquipoSelect.value = low(regla.tipoEquipo);
-        reglaMedioSelect.value = low(regla.medio || 'ambos');
-        reglaCondicionInput.value = regla.condicionModelo || '';
-        reglaExclusionInput.value = regla.excluirSiContiene || '';
-        reglaMaterialInput.value = regla.nombreMaterial || '';
-        reglaCodigoInput.value = regla.codigoMaterial || '';
-        reglaCantidadInput.value = String(regla.cantidadPorEquipo || 1);
-        reglaActivoSelect.value = regla.activo === false ? 'false' : 'true';
-        editReglaIndexInput.value = String(idx);
-        saveReglaButton.textContent = 'Actualizar Regla';
-      };
-
-      const bD = document.createElement('button');
-      bD.textContent = 'Eliminar';
-      bD.className = 'acciones-btn eliminar';
-      bD.onclick = () => {
-        if (!confirm('¿Eliminar esta regla de materiales automáticos?')) return;
-        const arr = readReglasMateriales();
-        arr.splice(idx, 1);
-        writeReglasMateriales(arr);
-        limpiarFormularioRegla();
-        renderizarReglasMateriales();
-      };
-
-      const bT = document.createElement('button');
-      bT.textContent = regla.activo === false ? 'Activar' : 'Desactivar';
-      bT.className = 'acciones-btn';
-      bT.onclick = () => {
-        const arr = readReglasMateriales();
-        if (!arr[idx]) return;
-        arr[idx].activo = arr[idx].activo === false;
-        writeReglasMateriales(arr);
-        renderizarReglasMateriales();
-      };
-
-      tdAcc.append(bE, bD, bT);
-      tr.appendChild(tdAcc);
-      tablaReglasBody.appendChild(tr);
-    });
-  }
-
-  saveReglaButton?.addEventListener('click', () => {
-    // Administracion de reglas guardadas en localStorage.reglasMaterialesPorEquipo.
-    const cantidad = parseInt(reglaCantidadInput?.value || '0', 10);
-    const regla = {
-      id: '',
-      tipoEquipo: low(reglaTipoEquipoSelect?.value),
-      medio: low(reglaMedioSelect?.value || 'ambos'),
-      condicionModelo: norm(reglaCondicionInput?.value),
-      excluirSiContiene: norm(reglaExclusionInput?.value),
-      codigoMaterial: norm(reglaCodigoInput?.value),
-      nombreMaterial: norm(reglaMaterialInput?.value),
-      cantidadPorEquipo: cantidad,
-      activo: reglaActivoSelect?.value !== 'false'
-    };
-
-    const error = validarReglaMaterial(regla);
-    if (error) { alert(error); return; }
-
-    const arr = readReglasMateriales();
-    const idx = parseInt(editReglaIndexInput?.value || '-1', 10);
-    if (idx >= 0 && arr[idx]) {
-      regla.id = arr[idx].id || `regla_${Date.now()}`;
-      arr[idx] = regla;
-      saveReglaButton.textContent = 'Guardar Regla';
-    } else {
-      regla.id = `regla_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      arr.push(regla);
-    }
-
-    writeReglasMateriales(arr);
-    limpiarFormularioRegla();
-    renderizarReglasMateriales();
-  });
-
-  clearReglaButton?.addEventListener('click', limpiarFormularioRegla);
 
   /* -------- RETIRADOS (usa mismo catálogo) -------- */
   const medioRetSelect = $('medioRetSelect');
@@ -425,8 +489,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnClearEq) {
     btnClearEq.addEventListener('click', () => {
       if (!confirm('¿Borrar TODOS los equipos instalados registrados? Esta acción no se puede deshacer.')) return;
+      const instalados = readCatalog().filter(x => x.aplica === 'instalado');
+      const materiales = cargarMaterialesAutomaticosPorEquipo();
+      instalados.forEach(item => delete materiales[getEquipoKey(item.medio, item.tipo, item.modelo)]);
+      guardarMaterialesAutomaticosPorEquipo(materiales);
       const cat = readCatalog().filter(x => x.aplica !== 'instalado');
       writeCatalog(cat);
+      ocultarPanelMaterialesEquipo();
       renderizarEquipos();
       poblarFiltrosEquipos();
     });
@@ -583,16 +652,19 @@ document.addEventListener('DOMContentLoaded', () => {
   poblarFiltrosServicios();
   renderizarEquipos();
   poblarFiltrosEquipos();
-  renderizarReglasMateriales();
   renderizarRetirados();
   poblarFiltrosRetirados();
 
   // Exponer funciones para importaciones
   window.renderizarServicios = renderizarServicios;
   window.renderizarEquipos = renderizarEquipos;
-  window.renderizarReglasMateriales = renderizarReglasMateriales;
   window.renderizarRetirados = renderizarRetirados;
   window.poblarFiltrosServicios = poblarFiltrosServicios;
   window.poblarFiltrosEquipos = poblarFiltrosEquipos;
   window.poblarFiltrosRetirados = poblarFiltrosRetirados;
+  window.getEquipoKey = getEquipoKey;
+  window.obtenerCatalogoMaterialesUnico = obtenerCatalogoMaterialesUnico;
+  window.cargarMaterialesAutomaticosPorEquipo = cargarMaterialesAutomaticosPorEquipo;
+  window.guardarMaterialesAutomaticosPorEquipo = guardarMaterialesAutomaticosPorEquipo;
+  window.renderMaterialesParaEquipoEditado = renderMaterialesParaEquipoEditado;
 });

@@ -2,45 +2,36 @@
 function marcarBoton(idBtn)   { document.getElementById(idBtn)?.classList.add('active'); }
 function desmarcarBoton(idBtn){ document.getElementById(idBtn)?.classList.remove('active'); }
 
-const REGLAS_MATERIALES_DEFAULT = [
-  {
-    id: 'regla_default_iptv',
-    tipoEquipo: 'deco',
-    medio: 'ambos',
-    condicionModelo: 'IPTV',
-    excluirSiContiene: 'RCU',
-    codigoMaterial: '',
-    nombreMaterial: 'CONTROL AMCO',
-    cantidadPorEquipo: 1,
-    activo: true
-  },
-  {
-    id: 'regla_default_repetidor',
-    tipoEquipo: 'repetidor',
-    medio: 'ambos',
-    condicionModelo: 'REPETIDOR',
-    excluirSiContiene: '',
-    codigoMaterial: '',
-    nombreMaterial: 'CONECTOR RJ45',
-    cantidadPorEquipo: 2,
-    activo: true
-  }
-];
-
 function normalizarTextoMaterial(valor) {
   return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 }
 
-function leerReglasMaterialesPorEquipo() {
-  // Las reglas se leen desde localStorage.reglasMaterialesPorEquipo; si la clave no existe se usan defaults.
+function tipoEquipoKey(medio, tipo) {
+  const m = String(medio || '').toLowerCase();
+  const t = String(tipo || '').toLowerCase();
+  if (t === 'equipo') return m === 'hfc' ? 'MTA' : 'Router';
+  if (t === 'deco') return m === 'hfc' ? 'Decodificador' : 'IPTV';
+  if (t === 'repetidor') return 'Repetidor';
+  return t;
+}
+
+function getEquipoKey(medio, tipo, modelo) {
+  return `${medio}::${tipoEquipoKey(medio, tipo)}::${modelo}`.trim().toUpperCase();
+}
+
+function cargarMaterialesAutomaticosPorEquipo() {
+  // Los materiales automaticos por modelo exacto se leen desde localStorage.materialesAutomaticosPorEquipo.
   try {
-    const raw = localStorage.getItem('reglasMaterialesPorEquipo');
-    if (raw === null) return REGLAS_MATERIALES_DEFAULT.slice();
-    const reglas = JSON.parse(raw || '[]');
-    return Array.isArray(reglas) ? reglas : [];
+    const raw = localStorage.getItem('materialesAutomaticosPorEquipo');
+    const data = raw ? JSON.parse(raw) : {};
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
   } catch {
-    return REGLAS_MATERIALES_DEFAULT.slice();
+    return {};
   }
+}
+
+function guardarMaterialesAutomaticosPorEquipo(data) {
+  localStorage.setItem('materialesAutomaticosPorEquipo', JSON.stringify(data || {}));
 }
 
 function parsearMaterialManual(linea) {
@@ -65,8 +56,7 @@ function formatearMaterial(material) {
   const nombre = String(material.nombreMaterial || '').trim();
   const cantidad = Number.isFinite(material.cantidad) ? material.cantidad : 1;
   const base = codigo ? `${codigo} - ${nombre}` : nombre;
-  const sufijo = material.automatico ? ' [Automático]' : '';
-  return `${base} x ${cantidad}${sufijo}`;
+  return `${base} x ${cantidad}`;
 }
 
 function consolidarMateriales(materiales) {
@@ -104,10 +94,28 @@ function contarSeries(ids) {
     .filter(Boolean).length;
 }
 
-function calcularMaterialesAutomaticosPorReglas() {
-  // Aplica las reglas activas a los equipos instalados seleccionados y recalcula desde cero cada vez.
-  const reglas = leerReglasMaterialesPorEquipo()
-    .filter(regla => regla && regla.activo !== false);
+function obtenerMaterialesAutomaticosDelEquipo(medio, tipo, modelo, cantidadEquipos) {
+  const cantidad = parseInt(cantidadEquipos || 0, 10);
+  if (!modelo || !Number.isInteger(cantidad) || cantidad <= 0) return [];
+  const data = cargarMaterialesAutomaticosPorEquipo();
+  const key = getEquipoKey(medio, tipo, modelo);
+  const materiales = Array.isArray(data[key]) ? data[key] : [];
+  return materiales
+    .map(item => {
+      const cantidadPorEquipo = parseInt(item.cantidad || 0, 10);
+      if (!Number.isInteger(cantidadPorEquipo) || cantidadPorEquipo <= 0) return null;
+      return {
+        codigoMaterial: String(item.codigo || item.codigoMaterial || '').trim(),
+        nombreMaterial: String(item.nombre || item.nombreMaterial || '').trim(),
+        cantidad: cantidad * cantidadPorEquipo,
+        automatico: true
+      };
+    })
+    .filter(Boolean);
+}
+
+function calcularMaterialesAutomaticosPorEquiposInstalados() {
+  // Recalcula desde cero los materiales automaticos configurados por modelo exacto instalado.
   const medio = String(typeof medioActual !== 'undefined' ? medioActual : '').toLowerCase();
   const equipos = [
     {
@@ -127,31 +135,9 @@ function calcularMaterialesAutomaticosPorReglas() {
     }
   ];
 
-  const materiales = [];
-  equipos.forEach(equipo => {
-    if (!equipo.modelo || equipo.cantidad <= 0) return;
-    const modeloNormalizado = normalizarTextoMaterial(equipo.modelo);
-    reglas.forEach(regla => {
-      if (String(regla.tipoEquipo || '').toLowerCase() !== equipo.tipoEquipo) return;
-      const reglaMedio = String(regla.medio || 'ambos').toLowerCase();
-      if (reglaMedio !== 'ambos' && reglaMedio !== medio) return;
-
-      const condicion = normalizarTextoMaterial(regla.condicionModelo);
-      const exclusion = normalizarTextoMaterial(regla.excluirSiContiene);
-      if (!condicion || !modeloNormalizado.includes(condicion)) return;
-      if (exclusion && modeloNormalizado.includes(exclusion)) return;
-
-      const cantidadPorEquipo = parseInt(regla.cantidadPorEquipo, 10);
-      materiales.push({
-        codigoMaterial: String(regla.codigoMaterial || '').trim(),
-        nombreMaterial: String(regla.nombreMaterial || '').trim(),
-        cantidad: equipo.cantidad * (Number.isInteger(cantidadPorEquipo) && cantidadPorEquipo > 0 ? cantidadPorEquipo : 1),
-        automatico: true
-      });
-    });
-  });
-
-  return materiales;
+  return equipos.flatMap(equipo =>
+    obtenerMaterialesAutomaticosDelEquipo(medio, equipo.tipoEquipo, equipo.modelo, equipo.cantidad)
+  );
 }
 
 function actualizarTexto() {
@@ -295,7 +281,7 @@ ${lineasEquipos.trim()}`;
   const materialesManuales = (chkMateriales && chkMateriales.checked ? (obtenerMateriales(servicio) || []) : [])
     .map(parsearMaterialManual)
     .filter(Boolean);
-  const materialesAutomaticos = calcularMaterialesAutomaticosPorReglas();
+  const materialesAutomaticos = calcularMaterialesAutomaticosPorEquiposInstalados();
   const materiales = consolidarMateriales([...materialesManuales, ...materialesAutomaticos])
     .map(formatearMaterial);
   if (materiales.length) {
@@ -462,7 +448,11 @@ function toggleMateriales(activado) {
 window.marcarBoton = marcarBoton;
 window.desmarcarBoton = desmarcarBoton;
 window.actualizarTexto = actualizarTexto;
-window.calcularMaterialesAutomaticosPorReglas = calcularMaterialesAutomaticosPorReglas;
+window.getEquipoKey = getEquipoKey;
+window.cargarMaterialesAutomaticosPorEquipo = cargarMaterialesAutomaticosPorEquipo;
+window.guardarMaterialesAutomaticosPorEquipo = guardarMaterialesAutomaticosPorEquipo;
+window.obtenerMaterialesAutomaticosDelEquipo = obtenerMaterialesAutomaticosDelEquipo;
+window.calcularMaterialesAutomaticosPorEquiposInstalados = calcularMaterialesAutomaticosPorEquiposInstalados;
 window.consolidarMateriales = consolidarMateriales;
 window.copiarTexto = copiarTexto;
 window.limpiarCampos = limpiarCampos;

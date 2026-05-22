@@ -42,6 +42,33 @@
       margin-right: 6px;
     }
     .row-actions{display:flex; gap:8px; flex-wrap: wrap; margin: 10px 0 12px;}
+    .auto-materiales-panel{
+      margin: 12px 0;
+      padding: 10px;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      background: #fafafa;
+    }
+    .auto-materiales-panel.hidden{display:none;}
+    .auto-materiales-filtros{
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 160px;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .auto-materiales-scroll{max-height: 260px;}
+    .auto-material-cantidad{
+      width: 72px;
+      text-align: center;
+    }
+    .auto-material-activo td{background: #edf7ed;}
+    input[type="number"]{
+      margin-top: 4px;
+      padding: 4px 6px;
+      border: 1px solid #aaa;
+      font-family: monospace;
+      font-size: 14px;
+    }
   </style>
 
   <!-- XLSX para exportaciones/importaciones -->
@@ -174,6 +201,35 @@
     <input type="text" id="equipoInput" placeholder="Ejemplo: ROUTER HG8245W5-6T DUAL BAND 4x4" />
 
     <input type="hidden" id="editEquipoIndex" value="-1" />
+    <input type="hidden" id="editEquipoKeyOriginal" value="" />
+
+    <div id="materialesEquipoPanel" class="auto-materiales-panel hidden">
+      <h3>Materiales automáticos para este equipo</h3>
+      <div class="auto-materiales-filtros">
+        <div>
+          <label for="buscarMaterialEquipoInput">Buscar material por código o nombre:</label>
+          <input type="text" id="buscarMaterialEquipoInput" placeholder="Ejemplo: CONTROL, RJ45, 1051697" />
+        </div>
+        <div>
+          <label for="filtroUnidadMaterialEquipo">Unidad:</label>
+          <select id="filtroUnidadMaterialEquipo">
+            <option value="">Todas</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-scroll auto-materiales-scroll">
+        <table id="tablaMaterialesEquipo">
+          <thead>
+            <tr>
+              <th>Material</th>
+              <th>Cantidad</th>
+              <th>Unidad</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
 
     <div class="row-actions">
       <button type="button" id="saveEquipoButton">Guardar Modelo</button>
@@ -203,73 +259,7 @@
             <th>Medio</th>
             <th>Tipo</th>
             <th>Modelo</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <hr />
-
-    <h2>Reglas de materiales automáticos por equipo</h2>
-
-    <label for="reglaTipoEquipoSelect">Tipo de equipo:</label>
-    <select id="reglaTipoEquipoSelect">
-      <option value="">-- Selecciona tipo --</option>
-      <option value="equipo">Equipo</option>
-      <option value="deco">Deco</option>
-      <option value="repetidor">Repetidor</option>
-    </select>
-
-    <label for="reglaMedioSelect">Medio:</label>
-    <select id="reglaMedioSelect">
-      <option value="ambos">Ambos</option>
-      <option value="hfc">HFC</option>
-      <option value="ftth">FTTH</option>
-    </select>
-
-    <label for="reglaCondicionInput">Condición del modelo:</label>
-    <input type="text" id="reglaCondicionInput" placeholder="Ejemplo: IPTV, REPETIDOR, MTA" />
-
-    <label for="reglaExclusionInput">Excluir si contiene:</label>
-    <input type="text" id="reglaExclusionInput" placeholder="Ejemplo: RCU (opcional)" />
-
-    <label for="reglaMaterialInput">Material automático:</label>
-    <input type="text" id="reglaMaterialInput" placeholder="Ejemplo: CONTROL AMCO" />
-
-    <label for="reglaCodigoInput">Código de material:</label>
-    <input type="text" id="reglaCodigoInput" placeholder="Opcional" />
-
-    <label for="reglaCantidadInput">Cantidad por equipo:</label>
-    <input type="number" id="reglaCantidadInput" min="1" step="1" value="1" />
-
-    <label for="reglaActivoSelect">Estado:</label>
-    <select id="reglaActivoSelect">
-      <option value="true">Activo</option>
-      <option value="false">Inactivo</option>
-    </select>
-
-    <input type="hidden" id="editReglaIndex" value="-1" />
-
-    <div class="row-actions">
-      <button type="button" id="saveReglaButton">Guardar Regla</button>
-      <button type="button" id="clearReglaButton">Limpiar Formulario</button>
-    </div>
-
-    <div class="section-title">Reglas Registradas</div>
-    <div class="table-scroll">
-      <table id="tablaReglasMateriales">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Tipo de equipo</th>
-            <th>Medio</th>
-            <th>Condición</th>
-            <th>Exclusión</th>
-            <th>Material</th>
-            <th>Cantidad</th>
-            <th>Estado</th>
+            <th>Materiales auto</th>
             <th>Acciones</th>
           </tr>
         </thead>

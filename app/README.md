@@ -54,9 +54,9 @@ README.md
 - Se guardan en `localStorage`:
   - `customServices`: `{ medio, categoria, servicio, materiales: [...] }`
   - `customEquipos`: `{ medio, tipo, modelo }`
-  - `reglasMaterialesPorEquipo`: reglas editables para agregar materiales automáticos según tipo, medio, modelo, exclusión, material, código, cantidad y estado.
+  - `materialesAutomaticosPorEquipo`: materiales automáticos asociados a un modelo exacto de equipo instalado.
 - La app integra estos catálogos al cargar (ver `integrarServiciosPersonalizados()` en `state.js`).
-- La sección **Reglas de materiales automáticos por equipo** permite crear, editar, eliminar y activar/desactivar reglas. Por ejemplo, una regla para `deco` con condición `IPTV` y exclusión `RCU` agrega `CONTROL AMCO` solo a decos IPTV normales.
+- Al editar un modelo de equipo instalado aparece **Materiales automáticos para este equipo**. Allí se busca el material por código o nombre y se ingresa la cantidad por equipo instalado. Cantidad vacía o `0` no se guarda.
 
 ## Dónde editar qué
 
@@ -69,7 +69,8 @@ README.md
   - Búsqueda por SOT y limpieza de series anteriores antes de aplicar una nueva SOT.
 - **UI**: `src/ui/render.js` y `src/ui/modal-drops.js`
   - Render de selects/tablas, modal de drops.
-  - `calcularMaterialesAutomaticosPorReglas()` lee `reglasMaterialesPorEquipo`, revisa equipos instalados con serie y devuelve materiales automáticos recalculados desde cero.
+  - `getEquipoKey()` genera la clave exacta `MEDIO::TIPO::MODELO` para vincular materiales a modelos instalados.
+  - `calcularMaterialesAutomaticosPorEquiposInstalados()` lee `materialesAutomaticosPorEquipo`, revisa equipos instalados con serie y devuelve materiales automáticos recalculados desde cero.
   - `consolidarMateriales()` une materiales manuales y automáticos por código o nombre para evitar duplicados.
 - **Excel**: `src/logic/excel.js`
   - Carga y limpieza del libro Excel (usa `XLSX` CDN).
