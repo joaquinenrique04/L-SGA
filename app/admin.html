@@ -62,6 +62,14 @@
       text-align: center;
     }
     .auto-material-activo td{background: #edf7ed;}
+    .material-status{
+      display:inline-block;
+      padding:2px 6px;
+      border:1px solid #bbb;
+      border-radius:999px;
+      font-size:11px;
+      background:#fff;
+    }
     input[type="number"]{
       margin-top: 4px;
       padding: 4px 6px;
@@ -119,7 +127,7 @@
       <a class="volver volver-top" href="index.html">Volver a pantalla principal</a>
     </div>
 
-    <h2>Administrar Servicios / Materiales</h2>
+    <h2>Servicios</h2>
 
     <label for="medioSelect">Medio:</label>
     <select id="medioSelect">
@@ -139,6 +147,34 @@
 
     <label for="materialesTextarea">Materiales (uno por línea, opcional):</label>
     <textarea id="materialesTextarea" placeholder="1002950 - Atador...&#10;1051091 - Protector..."></textarea>
+
+    <div class="auto-materiales-panel">
+      <h3>Materiales del servicio</h3>
+      <div class="auto-materiales-filtros">
+        <div>
+          <label for="buscarMaterialServicioInput">Buscar material por código o nombre:</label>
+          <input type="text" id="buscarMaterialServicioInput" placeholder="Ejemplo: CONTROL, RJ45, 1063021" />
+        </div>
+        <div>
+          <label for="filtroUnidadMaterialServicio">Unidad:</label>
+          <select id="filtroUnidadMaterialServicio">
+            <option value="">Todas</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-scroll auto-materiales-scroll">
+        <table id="tablaMaterialesServicio">
+          <thead>
+            <tr>
+              <th>Material</th>
+              <th>Cantidad</th>
+              <th>Unidad</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
 
     <input type="hidden" id="editIndex" value="-1" />
 
@@ -182,7 +218,7 @@
 
     <hr />
 
-    <h2>Administrar Modelos de Equipos</h2>
+    <h2>Equipos instalados</h2>
 
     <label for="medioEquipoSelect">Medio del Equipo:</label>
     <select id="medioEquipoSelect">
@@ -269,7 +305,7 @@
 
     <hr />
 
-    <h2>Administrar Equipos Retirados</h2>
+    <h2>Equipos retirados</h2>
 
     <label for="medioRetSelect">Medio:</label>
     <select id="medioRetSelect">
@@ -286,6 +322,15 @@
 
     <label for="retiradoInput">Modelo retirado:</label>
     <input type="text" id="retiradoInput" placeholder="Ejemplo: MTA TC8717T, Deco XG-6828, etc." />
+
+    <label for="codigoRetiradoInput">Código si aplica:</label>
+    <input type="text" id="codigoRetiradoInput" placeholder="Opcional" />
+
+    <label for="estadoRetiradoSelect">Estado:</label>
+    <select id="estadoRetiradoSelect">
+      <option value="true">Activo</option>
+      <option value="false">Inactivo</option>
+    </select>
 
     <input type="hidden" id="editRetIndex" value="-1" />
 
@@ -316,7 +361,92 @@
             <th>#</th>
             <th>Medio</th>
             <th>Tipo</th>
+            <th>Código</th>
             <th>Modelo</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <hr />
+
+    <h2>Materiales</h2>
+
+    <label for="materialCodigoInput">Código de material:</label>
+    <input type="text" id="materialCodigoInput" placeholder="Ejemplo: 1063021" />
+
+    <label for="materialNombreInput">Nombre de material:</label>
+    <input type="text" id="materialNombreInput" placeholder="Ejemplo: CONECTOR RJ 11" />
+
+    <label for="materialUnidadSelect">Unidad:</label>
+    <select id="materialUnidadSelect">
+      <option value="UNIDAD">UNIDAD</option>
+      <option value="METRO">METRO</option>
+      <option value="CAJA">CAJA</option>
+      <option value="BOLSA">BOLSA</option>
+      <option value="ROLLO">ROLLO</option>
+      <option value="KIT">KIT</option>
+      <option value="OTRO">OTRO</option>
+    </select>
+
+    <label for="materialMedioSelect">Medio:</label>
+    <select id="materialMedioSelect">
+      <option value="AMBOS">AMBOS</option>
+      <option value="HFC">HFC</option>
+      <option value="FTTH">FTTH</option>
+    </select>
+
+    <label for="materialActivoSelect">Estado:</label>
+    <select id="materialActivoSelect">
+      <option value="true">Activo</option>
+      <option value="false">Inactivo</option>
+    </select>
+
+    <input type="hidden" id="editMaterialId" value="" />
+
+    <div class="row-actions">
+      <button type="button" id="saveMaterialButton">Guardar material</button>
+      <button type="button" id="clearMaterialButton">Limpiar formulario</button>
+    </div>
+
+    <div class="section-title">Catálogo de Materiales</div>
+    <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <input type="text" id="buscarCatalogoMaterialesInput" placeholder="Buscar por código o nombre" style="max-width:260px;" />
+      <select id="filtroMedioMateriales" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Medios</option>
+        <option value="HFC">HFC</option>
+        <option value="FTTH">FTTH</option>
+        <option value="AMBOS">AMBOS</option>
+      </select>
+      <select id="filtroUnidadMateriales" style="padding: 4px; font-size: 12px;">
+        <option value="">Todas las Unidades</option>
+        <option value="UNIDAD">UNIDAD</option>
+        <option value="METRO">METRO</option>
+        <option value="CAJA">CAJA</option>
+        <option value="BOLSA">BOLSA</option>
+        <option value="ROLLO">ROLLO</option>
+        <option value="KIT">KIT</option>
+        <option value="OTRO">OTRO</option>
+      </select>
+      <select id="filtroEstadoMateriales" style="padding: 4px; font-size: 12px;">
+        <option value="">Todos los Estados</option>
+        <option value="true">Activo</option>
+        <option value="false">Inactivo</option>
+      </select>
+    </div>
+    <div class="table-scroll">
+      <table id="tablaCatalogoMateriales">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Unidad</th>
+            <th>Medio</th>
+            <th>Estado</th>
             <th>Acciones</th>
           </tr>
         </thead>

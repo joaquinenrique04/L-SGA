@@ -24,6 +24,110 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function writeObjectLS(key, obj){ localStorage.setItem(key, JSON.stringify(obj || {})); }
 
+  function makeId(prefix){ return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`; }
+
+  function parseMaterialLinea(linea){
+    const texto = norm(linea).replace(/\s*\[.*?\]\s*$/g, '');
+    if (!texto) return null;
+    const cantidadMatch = texto.match(/\s*(?::|x)\s*(\d+)\s*$/i);
+    const cantidad = cantidadMatch ? parseInt(cantidadMatch[1], 10) : 1;
+    const sinCantidad = cantidadMatch ? texto.slice(0, cantidadMatch.index).trim() : texto;
+    const match = sinCantidad.match(/^(\d{5,})\s*-\s*(.+)$/);
+    const nombre = match ? match[2].trim() : sinCantidad;
+    if (!nombre) return null;
+    return {
+      id: '',
+      codigo: match ? match[1].trim() : '',
+      nombre,
+      cantidad,
+      unidad: 'UNIDAD',
+      medio: 'AMBOS',
+      activo: true
+    };
+  }
+
+  function materialKey(item){
+    return item.codigo ? `codigo:${up(item.codigo)}` : `nombre:${up(item.nombre)}`;
+  }
+
+  function cargarCatalogoMateriales(){
+    return readLS('catalogoMateriales');
+  }
+
+  function guardarCatalogoMateriales(materiales){
+    writeLS('catalogoMateriales', materiales);
+  }
+
+  function migrarMaterialesExistentesAlCatalogo(){
+    if (localStorage.getItem('catalogoMateriales') !== null) return;
+    const base = [];
+    const agregar = (linea) => {
+      const item = parseMaterialLinea(linea);
+      if (item) base.push(item);
+    };
+
+    try {
+      Object.values(window.materialesPorServicio || {}).forEach(lista => {
+        if (Array.isArray(lista)) lista.forEach(agregar);
+      });
+    } catch {}
+
+    readLS('customServices').forEach(servicio => {
+      if (Array.isArray(servicio.materiales)) servicio.materiales.forEach(agregar);
+      if (Array.isArray(servicio.materialesCatalogo)) servicio.materialesCatalogo.forEach(item => {
+        base.push({
+          id: item.materialId || '',
+          codigo: norm(item.codigo),
+          nombre: norm(item.nombre),
+          unidad: up(item.unidad || 'UNIDAD'),
+          medio: up(item.medio || 'AMBOS'),
+          activo: true
+        });
+      });
+    });
+
+    Object.values(readObjectLS('materialesAutomaticosPorEquipo')).forEach(lista => {
+      if (!Array.isArray(lista)) return;
+      lista.forEach(item => base.push({
+        id: item.materialId || '',
+        codigo: norm(item.codigo || item.codigoMaterial),
+        nombre: norm(item.nombre || item.nombreMaterial),
+        unidad: up(item.unidad || 'UNIDAD'),
+        medio: 'AMBOS',
+        activo: true
+      }));
+    });
+
+    [
+      '8000181 - APP ACTIVA CHIP CLARO PERU',
+      '1063021 - CONECTOR RJ 11',
+      '1051697 - CONTROL REMOTO AN-4803 ECOSS',
+      '1040714 - CONTROL REMOTO SMK HFC',
+      '1004838 - CABLE HDMI CHD1-6 MALE TO MALE',
+      'CONTROL AMCO',
+      'CONECTOR RJ45'
+    ].forEach(agregar);
+
+    const map = new Map();
+    base.forEach(item => {
+      if (!item.nombre) return;
+      const key = materialKey(item);
+      if (!map.has(key)) {
+        map.set(key, {
+          id: item.id || makeId('mat'),
+          codigo: norm(item.codigo),
+          nombre: norm(item.nombre).toUpperCase(),
+          unidad: up(item.unidad || 'UNIDAD'),
+          medio: up(item.medio || 'AMBOS'),
+          activo: item.activo !== false
+        });
+      }
+    });
+    guardarCatalogoMateriales(Array.from(map.values()));
+  }
+
+  migrarMaterialesExistentesAlCatalogo();
+
   /* ---------- migración a catálogo unificado ---------- */
   (function migrate(){
     let catalogo = readLS('catalogoModelos');
@@ -41,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
     // desde customRetirados
-    const cr = readLS('customRetirados');
+    const cr = [...readLS('customRetirados'), ...readLS('customEquiposRetirados')];
     if (cr.length){
       cr.forEach(x => {
         const item = { medio: low(x.medio), tipo: low(x.tipo), modelo: norm(x.modelo), aplica: 'retirado' };
@@ -53,9 +157,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (changed) {
       writeLS('catalogoModelos', catalogo);
-      // Limpiar las claves antiguas después de migrar
-      localStorage.removeItem('customEquipos');
-      localStorage.removeItem('customRetirados');
+      writeLS('customEquipos', catalogo.filter(x => x.aplica === 'instalado').map(x => ({medio:x.medio, tipo:x.tipo, modelo:x.modelo})));
+      writeLS('customEquiposRetirados', catalogo.filter(x => x.aplica === 'retirado').map(x => ({
+        id: x.id || makeId('ret'),
+        medio:x.medio,
+        tipo:x.tipo,
+        modelo:x.modelo,
+        codigo:x.codigo || '',
+        activo:x.activo !== false
+      })));
     }
   })();
 
@@ -67,6 +177,111 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveServiceButton  = $('saveServiceButton');
   const tablaServiciosBody = document.querySelector('#tablaServicios tbody');
   const editIndexInput     = $('editIndex');
+  const buscarMaterialServicioInput = $('buscarMaterialServicioInput');
+  const filtroUnidadMaterialServicio = $('filtroUnidadMaterialServicio');
+  const tablaMaterialesServicioBody = document.querySelector('#tablaMaterialesServicio tbody');
+
+  function materialLabel(item){
+    return `${item.codigo ? `${item.codigo} - ` : ''}${item.nombre || ''}`;
+  }
+
+  function formatMaterialLinea(item){
+    return `${item.codigo ? `${item.codigo} - ` : ''}${item.nombre} x ${item.cantidad}`;
+  }
+
+  function poblarFiltroUnidad(select){
+    if (!select) return;
+    const actual = select.value;
+    const unidades = new Set(cargarCatalogoMateriales().map(item => item.unidad || 'UNIDAD'));
+    select.innerHTML = '<option value="">Todas</option>';
+    unidades.forEach(unidad => {
+      const opt = document.createElement('option');
+      opt.value = unidad;
+      opt.textContent = unidad;
+      select.appendChild(opt);
+    });
+    select.value = actual;
+  }
+
+  function normalizarMaterialesServicio(item){
+    if (Array.isArray(item?.materialesCatalogo)) return item.materialesCatalogo;
+    return (Array.isArray(item?.materiales) ? item.materiales : [])
+      .map(parseMaterialLinea)
+      .filter(Boolean)
+      .map(mat => ({
+        materialId: mat.id || '',
+        codigo: mat.codigo,
+        nombre: mat.nombre,
+        cantidad: mat.cantidad || 1,
+        unidad: mat.unidad || 'UNIDAD'
+      }));
+  }
+
+  function renderMaterialesServicio(asignados = []){
+    if (!tablaMaterialesServicioBody) return;
+    const byKey = new Map(asignados.map(item => {
+      const key = item.materialId || (item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`);
+      return [key, item];
+    }));
+    const filtro = up(buscarMaterialServicioInput?.value || '');
+    const unidadFiltro = up(filtroUnidadMaterialServicio?.value || '');
+    tablaMaterialesServicioBody.innerHTML = '';
+    obtenerCatalogoMaterialesUnico()
+      .filter(item => {
+        const texto = up(`${item.codigo} ${item.nombre}`);
+        const unidad = up(item.unidad || 'UNIDAD');
+        return item.activo !== false && (!filtro || texto.includes(filtro)) && (!unidadFiltro || unidad === unidadFiltro);
+      })
+      .forEach(item => {
+        const key = item.id || (item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`);
+        const actual = byKey.get(key) || byKey.get(item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`);
+        const cantidad = actual ? parseInt(actual.cantidad || 0, 10) : 0;
+        const tr = document.createElement('tr');
+        if (cantidad > 0) tr.classList.add('auto-material-activo');
+        const tdMat = document.createElement('td');
+        tdMat.textContent = materialLabel(item);
+        const tdCant = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.step = '1';
+        input.className = 'auto-material-cantidad';
+        input.value = cantidad > 0 ? String(cantidad) : '';
+        input.dataset.materialId = item.id || '';
+        input.dataset.codigo = item.codigo || '';
+        input.dataset.nombre = item.nombre || '';
+        input.dataset.unidad = item.unidad || 'UNIDAD';
+        input.addEventListener('input', () => {
+          const val = parseInt(input.value || '0', 10);
+          if (val < 0) input.value = '0';
+          tr.classList.toggle('auto-material-activo', parseInt(input.value || '0', 10) > 0);
+        });
+        tdCant.appendChild(input);
+        const tdUnidad = document.createElement('td');
+        tdUnidad.textContent = item.unidad || 'UNIDAD';
+        tr.append(tdMat, tdCant, tdUnidad);
+        tablaMaterialesServicioBody.appendChild(tr);
+      });
+  }
+
+  function leerMaterialesServicioDesdeTabla(){
+    const out = [];
+    tablaMaterialesServicioBody?.querySelectorAll('input').forEach(input => {
+      const cantidad = parseInt(input.value || '0', 10);
+      if (!Number.isInteger(cantidad) || cantidad <= 0) return;
+      out.push({
+        materialId: input.dataset.materialId || '',
+        codigo: input.dataset.codigo || '',
+        nombre: input.dataset.nombre || '',
+        cantidad,
+        unidad: input.dataset.unidad || 'UNIDAD'
+      });
+    });
+    return out;
+  }
+
+  buscarMaterialServicioInput?.addEventListener('input', () => renderMaterialesServicio(leerMaterialesServicioDesdeTabla()));
+  filtroUnidadMaterialServicio?.addEventListener('change', () => renderMaterialesServicio(leerMaterialesServicioDesdeTabla()));
 
   function renderizarServicios(){
     const lista = readLS('customServices');
@@ -93,6 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
         categoriaSelect.value = low(item.categoria||'instalacion');
         servicioInput.value = item.servicio||'';
         materialesTextarea.value = (Array.isArray(item.materiales)?item.materiales:[]).join('\n');
+        renderMaterialesServicio(normalizarMaterialesServicio(item));
         editIndexInput.value = String(idx);
         saveServiceButton.textContent = 'Actualizar Servicio';
       };
@@ -109,21 +325,231 @@ document.addEventListener('DOMContentLoaded', () => {
     const medio=low(medioSelect.value), categoria=low(categoriaSelect.value);
     const servicio=norm(servicioInput.value), mats=norm(materialesTextarea.value);
     if (!servicio){ alert('Debes escribir la descripción del servicio.'); return; }
-    const materialesArr = mats ? mats.split(/\r?\n/).map(s=>s.trim()).filter(Boolean) : [];
+    const materialesCatalogo = leerMaterialesServicioDesdeTabla();
+    const materialesTabla = materialesCatalogo.map(formatMaterialLinea);
+    const materialesTexto = mats ? mats.split(/\r?\n/).map(s=>s.trim()).filter(Boolean) : [];
+    const materialesArr = [...materialesTabla, ...materialesTexto];
     const arr = readLS('customServices');
     const idx = parseInt(editIndexInput.value,10);
-    const nuevo = { medio, categoria, servicio, materiales: materialesArr };
+    const nuevo = { medio, categoria, servicio, materiales: materialesArr, materialesCatalogo };
     if (idx>=0){ arr[idx]=nuevo; saveServiceButton.textContent='Guardar Servicio'; }
     else { arr.push(nuevo); }
     writeLS('customServices', arr);
     servicioInput.value=''; materialesTextarea.value=''; editIndexInput.value='-1';
+    renderMaterialesServicio([]);
     renderizarServicios();
     poblarFiltrosServicios();
   });
 
+  /* ===================== MATERIALES ===================== */
+  const materialCodigoInput = $('materialCodigoInput');
+  const materialNombreInput = $('materialNombreInput');
+  const materialUnidadSelect = $('materialUnidadSelect');
+  const materialMedioSelect = $('materialMedioSelect');
+  const materialActivoSelect = $('materialActivoSelect');
+  const editMaterialIdInput = $('editMaterialId');
+  const saveMaterialButton = $('saveMaterialButton');
+  const clearMaterialButton = $('clearMaterialButton');
+  const buscarCatalogoMaterialesInput = $('buscarCatalogoMaterialesInput');
+  const filtroMedioMateriales = $('filtroMedioMateriales');
+  const filtroUnidadMateriales = $('filtroUnidadMateriales');
+  const filtroEstadoMateriales = $('filtroEstadoMateriales');
+  const tablaCatalogoMaterialesBody = document.querySelector('#tablaCatalogoMateriales tbody');
+
+  function limpiarFormularioMaterial(){
+    if (materialCodigoInput) materialCodigoInput.value = '';
+    if (materialNombreInput) materialNombreInput.value = '';
+    if (materialUnidadSelect) materialUnidadSelect.value = 'UNIDAD';
+    if (materialMedioSelect) materialMedioSelect.value = 'AMBOS';
+    if (materialActivoSelect) materialActivoSelect.value = 'true';
+    if (editMaterialIdInput) editMaterialIdInput.value = '';
+    if (saveMaterialButton) saveMaterialButton.textContent = 'Guardar material';
+  }
+
+  function materialEstaEnUso(material){
+    const keyCodigo = up(material.codigo);
+    const keyNombre = up(material.nombre);
+    const usadoServicio = readLS('customServices').some(servicio =>
+      (Array.isArray(servicio.materialesCatalogo) && servicio.materialesCatalogo.some(m => m.materialId === material.id || (keyCodigo && up(m.codigo) === keyCodigo) || (!keyCodigo && up(m.nombre) === keyNombre))) ||
+      (Array.isArray(servicio.materiales) && servicio.materiales.some(linea => up(linea).includes(keyCodigo || keyNombre)))
+    );
+    const usadosEquipo = Object.values(cargarMaterialesAutomaticosPorEquipo()).some(lista =>
+      Array.isArray(lista) && lista.some(m => m.materialId === material.id || (keyCodigo && up(m.codigo) === keyCodigo) || (!keyCodigo && up(m.nombre) === keyNombre))
+    );
+    return usadoServicio || usadosEquipo;
+  }
+
+  function renderCatalogoMateriales(){
+    if (!tablaCatalogoMaterialesBody) return;
+    const buscar = up(buscarCatalogoMaterialesInput?.value || '');
+    const medio = up(filtroMedioMateriales?.value || '');
+    const unidad = up(filtroUnidadMateriales?.value || '');
+    const estado = filtroEstadoMateriales?.value || '';
+    const lista = cargarCatalogoMateriales()
+      .filter(item => {
+        const texto = up(`${item.codigo} ${item.nombre}`);
+        return (!buscar || texto.includes(buscar)) &&
+          (!medio || up(item.medio) === medio) &&
+          (!unidad || up(item.unidad) === unidad) &&
+          (!estado || String(item.activo !== false) === estado);
+      })
+      .sort((a,b) => (a.nombre || '').localeCompare(b.nombre || ''));
+
+    tablaCatalogoMaterialesBody.innerHTML = '';
+    if (!lista.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 7;
+      td.style.textAlign = 'center';
+      td.textContent = 'No hay materiales registrados.';
+      tr.appendChild(td);
+      tablaCatalogoMaterialesBody.appendChild(tr);
+      return;
+    }
+
+    lista.forEach((item, idx) => {
+      const tr = document.createElement('tr');
+      const c = (text) => { const td = document.createElement('td'); td.textContent = text; tr.appendChild(td); };
+      c(idx + 1);
+      c(item.codigo || '');
+      c(item.nombre || '');
+      c(item.unidad || 'UNIDAD');
+      c(item.medio || 'AMBOS');
+      c(item.activo === false ? 'Inactivo' : 'Activo');
+      const tdAcc = document.createElement('td');
+      const bE = document.createElement('button');
+      bE.textContent = 'Editar';
+      bE.className = 'acciones-btn';
+      bE.onclick = () => editarMaterial(item.id);
+      const bD = document.createElement('button');
+      bD.textContent = 'Eliminar';
+      bD.className = 'acciones-btn eliminar';
+      bD.onclick = () => eliminarMaterial(item.id);
+      const bT = document.createElement('button');
+      bT.textContent = item.activo === false ? 'Activar' : 'Desactivar';
+      bT.className = 'acciones-btn';
+      bT.onclick = () => toggleEstadoMaterial(item.id);
+      tdAcc.append(bE, bD, bT);
+      tr.appendChild(tdAcc);
+      tablaCatalogoMaterialesBody.appendChild(tr);
+    });
+  }
+
+  function guardarMaterial(){
+    const id = editMaterialIdInput?.value || '';
+    const nuevo = {
+      id: id || makeId('mat'),
+      codigo: norm(materialCodigoInput?.value),
+      nombre: up(materialNombreInput?.value),
+      unidad: up(materialUnidadSelect?.value || 'UNIDAD'),
+      medio: up(materialMedioSelect?.value || 'AMBOS'),
+      activo: materialActivoSelect?.value !== 'false'
+    };
+    if (!nuevo.nombre) { alert('El nombre del material es obligatorio.'); return; }
+    if (!nuevo.unidad) { alert('La unidad es obligatoria.'); return; }
+    if (!nuevo.medio) { alert('El medio es obligatorio.'); return; }
+
+    const lista = cargarCatalogoMateriales();
+    const duplicado = lista.some(item => item.id !== nuevo.id && (
+      (nuevo.codigo && up(item.codigo) === up(nuevo.codigo)) ||
+      (!nuevo.codigo && !item.codigo && up(item.nombre) === up(nuevo.nombre))
+    ));
+    if (duplicado) { alert('Ya existe un material con ese código o nombre.'); return; }
+
+    const idx = lista.findIndex(item => item.id === nuevo.id);
+    if (idx >= 0) lista[idx] = nuevo;
+    else lista.push(nuevo);
+    guardarCatalogoMateriales(lista);
+    limpiarFormularioMaterial();
+    renderCatalogoMateriales();
+    poblarFiltroUnidad(filtroUnidadMaterialServicio);
+    poblarFiltroUnidadesMateriales();
+    renderMaterialesServicio(leerMaterialesServicioDesdeTabla());
+    refrescarMaterialesEquipoEditado();
+  }
+
+  function editarMaterial(id){
+    const item = cargarCatalogoMateriales().find(x => x.id === id);
+    if (!item) return;
+    materialCodigoInput.value = item.codigo || '';
+    materialNombreInput.value = item.nombre || '';
+    materialUnidadSelect.value = item.unidad || 'UNIDAD';
+    materialMedioSelect.value = item.medio || 'AMBOS';
+    materialActivoSelect.value = item.activo === false ? 'false' : 'true';
+    editMaterialIdInput.value = item.id;
+    saveMaterialButton.textContent = 'Actualizar material';
+  }
+
+  function limpiarRelacionesMaterial(material){
+    const servicios = readLS('customServices').map(servicio => {
+      const matsCat = Array.isArray(servicio.materialesCatalogo)
+        ? servicio.materialesCatalogo.filter(m => !(m.materialId === material.id || (material.codigo && up(m.codigo) === up(material.codigo)) || (!material.codigo && up(m.nombre) === up(material.nombre))))
+        : [];
+      const mats = Array.isArray(servicio.materiales)
+        ? servicio.materiales.filter(linea => !up(linea).includes(up(material.codigo || material.nombre)))
+        : [];
+      return {...servicio, materialesCatalogo: matsCat, materiales: mats};
+    });
+    writeLS('customServices', servicios);
+
+    const data = cargarMaterialesAutomaticosPorEquipo();
+    Object.keys(data).forEach(key => {
+      data[key] = (Array.isArray(data[key]) ? data[key] : []).filter(m =>
+        !(m.materialId === material.id || (material.codigo && up(m.codigo) === up(material.codigo)) || (!material.codigo && up(m.nombre) === up(material.nombre)))
+      );
+      if (!data[key].length) delete data[key];
+    });
+    guardarMaterialesAutomaticosPorEquipo(data);
+  }
+
+  function eliminarMaterial(id){
+    const lista = cargarCatalogoMateriales();
+    const item = lista.find(x => x.id === id);
+    if (!item) return;
+    if (materialEstaEnUso(item) && !confirm('Este material está asociado a servicios o equipos. ¿Eliminarlo y limpiar esas relaciones?')) return;
+    guardarCatalogoMateriales(lista.filter(x => x.id !== id));
+    limpiarRelacionesMaterial(item);
+    renderCatalogoMateriales();
+    renderizarServicios();
+    renderizarEquipos();
+  }
+
+  function toggleEstadoMaterial(id){
+    const lista = cargarCatalogoMateriales();
+    const item = lista.find(x => x.id === id);
+    if (!item) return;
+    item.activo = item.activo === false;
+    guardarCatalogoMateriales(lista);
+    renderCatalogoMateriales();
+    renderMaterialesServicio(leerMaterialesServicioDesdeTabla());
+    refrescarMaterialesEquipoEditado();
+  }
+
+  function obtenerCatalogoMaterialesActivos(){
+    return cargarCatalogoMateriales().filter(item => item.activo !== false);
+  }
+
+  saveMaterialButton?.addEventListener('click', guardarMaterial);
+  clearMaterialButton?.addEventListener('click', limpiarFormularioMaterial);
+  buscarCatalogoMaterialesInput?.addEventListener('input', renderCatalogoMateriales);
+  filtroMedioMateriales?.addEventListener('change', renderCatalogoMateriales);
+  filtroUnidadMateriales?.addEventListener('change', renderCatalogoMateriales);
+  filtroEstadoMateriales?.addEventListener('change', renderCatalogoMateriales);
+
   /* ===================== CATALOGO UNIFICADO ===================== */
   function readCatalog(){ return readLS('catalogoModelos'); }
-  function writeCatalog(arr){ writeLS('catalogoModelos', arr); }
+  function writeCatalog(arr){
+    writeLS('catalogoModelos', arr);
+    writeLS('customEquipos', arr.filter(x => x.aplica === 'instalado').map(x => ({medio:x.medio, tipo:x.tipo, modelo:x.modelo})));
+    writeLS('customEquiposRetirados', arr.filter(x => x.aplica === 'retirado').map(x => ({
+      id: x.id || makeId('ret'),
+      medio:x.medio,
+      tipo:x.tipo,
+      modelo:x.modelo,
+      codigo:x.codigo || '',
+      activo:x.activo !== false
+    })));
+  }
 
   /* -------- INSTALADOS (UI existente) -------- */
   const medioEquipoSelect    = $('medioEquipoSelect');
@@ -151,47 +577,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${medio}::${tipoEquipoKey(medio, tipo)}::${modelo}`.trim().toUpperCase();
   }
 
-  function parseMaterialLinea(linea){
-    const texto = norm(linea).replace(/\s*\[.*?\]\s*$/g, '');
-    if (!texto) return null;
-    const sinCantidad = texto.replace(/\s*(?::|x)\s*\d+\s*$/i, '').trim();
-    const match = sinCantidad.match(/^(\d{5,})\s*-\s*(.+)$/);
-    const nombre = match ? match[2].trim() : sinCantidad;
-    if (!nombre) return null;
-    return {
-      codigo: match ? match[1].trim() : '',
-      nombre,
-      unidad: 'UNIDAD'
-    };
-  }
-
   function obtenerCatalogoMaterialesUnico(){
-    const materiales = [];
-    const agregar = (linea) => {
-      const item = parseMaterialLinea(linea);
-      if (item) materiales.push(item);
-    };
-
-    try {
-      Object.values(window.materialesPorServicio || {}).forEach(lista => {
-        if (Array.isArray(lista)) lista.forEach(agregar);
-      });
-    } catch {}
-
-    readLS('customServices').forEach(servicio => {
-      if (Array.isArray(servicio.materiales)) servicio.materiales.forEach(agregar);
-    });
-
-    [
-      '8000181 - APP ACTIVA CHIP CLARO PERU',
-      '1063021 - CONECTOR RJ 11',
-      '1051697 - CONTROL REMOTO AN-4803 ECOSS',
-      '1040714 - CONTROL REMOTO SMK HFC',
-      '1004838 - CABLE HDMI CHD1-6 MALE TO MALE',
-      'CONTROL AMCO',
-      'CONECTOR RJ45'
-    ].forEach(agregar);
-
+    const materiales = cargarCatalogoMateriales().filter(item => item.activo !== false);
     const map = new Map();
     materiales.forEach(item => {
       const key = item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`;
@@ -219,6 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const cantidad = parseInt(input.value || '0', 10);
       if (!Number.isInteger(cantidad) || cantidad <= 0) return;
       out.push({
+        materialId: input.dataset.materialId || '',
         codigo: input.dataset.codigo || '',
         nombre: input.dataset.nombre || '',
         cantidad,
@@ -241,7 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!tablaMaterialesEquipoBody || !materialesEquipoPanel) return;
     const key = getEquipoKey(equipo.medio, equipo.tipo, equipo.modelo);
     const asignados = new Map(materialesConfiguradosParaKey(key).map(item => {
-      const itemKey = item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`;
+      const itemKey = item.materialId || (item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`);
       return [itemKey, item];
     }));
     const filtro = up(buscarMaterialEquipoInput?.value || '');
@@ -257,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
       })
       .forEach(item => {
         const itemKey = item.codigo ? `codigo:${item.codigo}` : `nombre:${up(item.nombre)}`;
-        const actual = asignados.get(itemKey);
+        const actual = asignados.get(item.id) || asignados.get(itemKey);
         const cantidad = actual ? parseInt(actual.cantidad || 0, 10) : 0;
         const tr = document.createElement('tr');
         if (cantidad > 0) tr.classList.add('auto-material-activo');
@@ -272,6 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
         input.className = 'auto-material-cantidad';
         input.value = cantidad > 0 ? String(cantidad) : '';
         input.dataset.materialKey = itemKey;
+        input.dataset.materialId = item.id || '';
         input.dataset.codigo = item.codigo || '';
         input.dataset.nombre = item.nombre || '';
         input.dataset.unidad = item.unidad || 'UNIDAD';
@@ -413,6 +802,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const medioRetSelect = $('medioRetSelect');
   const tipoRetSelect  = $('tipoRetSelect');
   const retiradoInput  = $('retiradoInput');
+  const codigoRetiradoInput = $('codigoRetiradoInput');
+  const estadoRetiradoSelect = $('estadoRetiradoSelect');
   const saveRetButton  = $('saveRetButton');
   const tablaRetiradosBody = document.querySelector('#tablaRetirados tbody');
   const editRetIndex   = $('editRetIndex');
@@ -423,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tbody.innerHTML='';
     if (!cat.length){
       const tr=document.createElement('tr'); const td=document.createElement('td');
-      td.colSpan=5; td.style.textAlign='center'; td.textContent='No hay equipos retirados.';
+      td.colSpan=7; td.style.textAlign='center'; td.textContent='No hay equipos retirados.';
       tr.appendChild(td); tbody.appendChild(tr); return;
     }
     cat.forEach((it, idx)=>{
@@ -432,10 +823,12 @@ document.addEventListener('DOMContentLoaded', () => {
       c(idx+1); c(up(it.medio));
       let label=''; if (it.tipo==='equipo') label='EQUIPO'; else if (it.tipo==='deco') label='DECO'; else if (it.tipo==='repetidor') label='REPETIDOR'; else label=up(it.tipo);
       c(label);
+      c(it.codigo || '');
       c(it.modelo||'');
+      c(it.activo === false ? 'Inactivo' : 'Activo');
       const tdAcc=document.createElement('td');
       const bE=document.createElement('button'); bE.textContent='Editar'; bE.className='acciones-btn';
-      bE.onclick=()=>{ medioRetSelect.value=low(it.medio); tipoRetSelect.value=low(it.tipo); retiradoInput.value=it.modelo; editRetIndex.value=String(idx); saveRetButton.textContent='Actualizar Retirado'; };
+      bE.onclick=()=>{ medioRetSelect.value=low(it.medio); tipoRetSelect.value=low(it.tipo); retiradoInput.value=it.modelo; codigoRetiradoInput.value=it.codigo||''; estadoRetiradoSelect.value=it.activo===false?'false':'true'; editRetIndex.value=String(idx); saveRetButton.textContent='Actualizar Retirado'; };
       const bD=document.createElement('button'); bD.textContent='Eliminar'; bD.className='acciones-btn eliminar';
       bD.onclick=()=>{
         if (!confirm('¿Eliminar este retirado?')) return;
@@ -456,12 +849,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modelo){ alert('Escribe el modelo retirado.'); return; }
     const arr = readCatalog();
     const idx = parseInt(editRetIndex.value,10);
-    const nuevo = { medio, tipo, modelo, aplica:'retirado' };
+    const nuevo = { id: makeId('ret'), medio, tipo, modelo, codigo: norm(codigoRetiradoInput?.value), activo: estadoRetiradoSelect?.value !== 'false', aplica:'retirado' };
     if (idx>=0){
       const filtered = arr.filter(x => x.aplica==='retirado');
       const target = filtered[idx];
       const pos = arr.findIndex(x => x===target);
-      if (pos>=0) arr[pos] = nuevo;
+      if (pos>=0) arr[pos] = {...nuevo, id: target.id || nuevo.id};
       saveRetButton.textContent='Guardar Retirado';
     } else {
       if (!arr.some(x => x.aplica==='retirado' && low(x.medio)===medio && low(x.tipo)===tipo && up(x.modelo)===up(modelo))){
@@ -469,7 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     writeCatalog(arr);
-    retiradoInput.value=''; editRetIndex.value='-1';
+    retiradoInput.value=''; if (codigoRetiradoInput) codigoRetiradoInput.value=''; if (estadoRetiradoSelect) estadoRetiradoSelect.value='true'; editRetIndex.value='-1';
     renderizarRetirados();
     poblarFiltrosRetirados();
   });
@@ -605,7 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rows = tablaEquiposBody.querySelectorAll('tr');
     rows.forEach(row => {
       const cells = row.querySelectorAll('td');
-      if (cells.length < 4) return;
+      if (cells.length < 5) return;
       const medio = cells[1].textContent;
       const tipo = cells[2].textContent;
       const modelo = cells[3].textContent;
@@ -623,10 +1016,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const rows = tablaRetiradosBody.querySelectorAll('tr');
     rows.forEach(row => {
       const cells = row.querySelectorAll('td');
-      if (cells.length < 4) return;
+      if (cells.length < 5) return;
       const medio = cells[1].textContent;
       const tipo = cells[2].textContent;
-      const modelo = cells[3].textContent;
+      const modelo = cells[4].textContent;
       const visible = (!filtroMedio || medio === filtroMedio) &&
                       (!filtroTipo || tipo === filtroTipo) &&
                       (!filtroModelo || modelo === filtroModelo);
@@ -650,10 +1043,13 @@ document.addEventListener('DOMContentLoaded', () => {
   /* init */
   renderizarServicios();
   poblarFiltrosServicios();
+  poblarFiltroUnidad(filtroUnidadMaterialServicio);
+  renderMaterialesServicio([]);
   renderizarEquipos();
   poblarFiltrosEquipos();
   renderizarRetirados();
   poblarFiltrosRetirados();
+  renderCatalogoMateriales();
 
   // Exponer funciones para importaciones
   window.renderizarServicios = renderizarServicios;
@@ -662,6 +1058,15 @@ document.addEventListener('DOMContentLoaded', () => {
   window.poblarFiltrosServicios = poblarFiltrosServicios;
   window.poblarFiltrosEquipos = poblarFiltrosEquipos;
   window.poblarFiltrosRetirados = poblarFiltrosRetirados;
+  window.cargarCatalogoMateriales = cargarCatalogoMateriales;
+  window.guardarCatalogoMateriales = guardarCatalogoMateriales;
+  window.renderCatalogoMateriales = renderCatalogoMateriales;
+  window.limpiarFormularioMaterial = limpiarFormularioMaterial;
+  window.guardarMaterial = guardarMaterial;
+  window.editarMaterial = editarMaterial;
+  window.eliminarMaterial = eliminarMaterial;
+  window.toggleEstadoMaterial = toggleEstadoMaterial;
+  window.obtenerCatalogoMaterialesActivos = obtenerCatalogoMaterialesActivos;
   window.getEquipoKey = getEquipoKey;
   window.obtenerCatalogoMaterialesUnico = obtenerCatalogoMaterialesUnico;
   window.cargarMaterialesAutomaticosPorEquipo = cargarMaterialesAutomaticosPorEquipo;

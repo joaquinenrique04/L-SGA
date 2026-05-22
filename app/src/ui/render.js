@@ -34,6 +34,16 @@ function guardarMaterialesAutomaticosPorEquipo(data) {
   localStorage.setItem('materialesAutomaticosPorEquipo', JSON.stringify(data || {}));
 }
 
+function cargarCatalogoMateriales() {
+  try {
+    const raw = localStorage.getItem('catalogoMateriales');
+    const data = raw ? JSON.parse(raw) : [];
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
 function parsearMaterialManual(linea) {
   const texto = String(linea || '').trim();
   if (!texto) return null;
@@ -68,13 +78,15 @@ function consolidarMateriales(materiales) {
     const nombre = String(item.nombreMaterial || '').trim();
     if (!codigo && !nombre) return;
 
-    const key = codigo ? `codigo:${normalizarTextoMaterial(codigo)}` : `nombre:${normalizarTextoMaterial(nombre)}`;
+    const materialId = String(item.materialId || '').trim();
+    const key = materialId ? `id:${materialId}` : (codigo ? `codigo:${normalizarTextoMaterial(codigo)}` : `nombre:${normalizarTextoMaterial(nombre)}`);
     const cantidad = parseInt(item.cantidad ?? item.cantidadPorEquipo ?? 1, 10);
     const safeCantidad = Number.isInteger(cantidad) && cantidad > 0 ? cantidad : 1;
     if (!map.has(key)) {
       map.set(key, {
         codigoMaterial: codigo,
         nombreMaterial: nombre,
+        materialId,
         cantidad: 0,
         automatico: false
       });
@@ -82,6 +94,7 @@ function consolidarMateriales(materiales) {
     const actual = map.get(key);
     actual.cantidad += safeCantidad;
     actual.automatico = actual.automatico || item.automatico === true;
+    if (!actual.materialId && materialId) actual.materialId = materialId;
     if (!actual.codigoMaterial && codigo) actual.codigoMaterial = codigo;
     if (!actual.nombreMaterial && nombre) actual.nombreMaterial = nombre;
   });
@@ -100,11 +113,18 @@ function obtenerMaterialesAutomaticosDelEquipo(medio, tipo, modelo, cantidadEqui
   const data = cargarMaterialesAutomaticosPorEquipo();
   const key = getEquipoKey(medio, tipo, modelo);
   const materiales = Array.isArray(data[key]) ? data[key] : [];
+  const catalogo = cargarCatalogoMateriales();
   return materiales
     .map(item => {
+      const catalogItem = item.materialId ? catalogo.find(mat => mat.id === item.materialId) : catalogo.find(mat =>
+        (item.codigo && mat.codigo === item.codigo) || (!item.codigo && normalizarTextoMaterial(mat.nombre) === normalizarTextoMaterial(item.nombre))
+      );
+      if (item.materialId && !catalogItem) return null;
+      if (catalogItem && catalogItem.activo === false) return null;
       const cantidadPorEquipo = parseInt(item.cantidad || 0, 10);
       if (!Number.isInteger(cantidadPorEquipo) || cantidadPorEquipo <= 0) return null;
       return {
+        materialId: item.materialId || catalogItem?.id || '',
         codigoMaterial: String(item.codigo || item.codigoMaterial || '').trim(),
         nombreMaterial: String(item.nombre || item.nombreMaterial || '').trim(),
         cantidad: cantidad * cantidadPorEquipo,
@@ -451,6 +471,7 @@ window.actualizarTexto = actualizarTexto;
 window.getEquipoKey = getEquipoKey;
 window.cargarMaterialesAutomaticosPorEquipo = cargarMaterialesAutomaticosPorEquipo;
 window.guardarMaterialesAutomaticosPorEquipo = guardarMaterialesAutomaticosPorEquipo;
+window.cargarCatalogoMateriales = cargarCatalogoMateriales;
 window.obtenerMaterialesAutomaticosDelEquipo = obtenerMaterialesAutomaticosDelEquipo;
 window.calcularMaterialesAutomaticosPorEquiposInstalados = calcularMaterialesAutomaticosPorEquiposInstalados;
 window.consolidarMateriales = consolidarMateriales;

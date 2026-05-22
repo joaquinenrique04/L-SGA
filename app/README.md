@@ -50,12 +50,16 @@ README.md
 
 ### Panel de administración
 
-- Abre **`admin.html`** para añadir **servicios/materiales** o **modelos de equipos** personalizados.  
+- Abre **`admin.html`** para gestionar cuatro listas principales: **Servicios**, **Equipos instalados**, **Equipos retirados** y **Materiales**.
 - Se guardan en `localStorage`:
   - `customServices`: `{ medio, categoria, servicio, materiales: [...] }`
-  - `customEquipos`: `{ medio, tipo, modelo }`
+  - `customEquipos`: equipos instalados personalizados.
+  - `customEquiposRetirados`: equipos retirados personalizados.
+  - `catalogoMateriales`: catálogo maestro de materiales `{ id, codigo, nombre, unidad, medio, activo }`.
   - `materialesAutomaticosPorEquipo`: materiales automáticos asociados a un modelo exacto de equipo instalado.
 - La app integra estos catálogos al cargar (ver `integrarServiciosPersonalizados()` en `state.js`).
+- La sección **Materiales** es la fuente principal para asociar materiales a servicios y equipos instalados.
+- En **Servicios**, los materiales pueden seleccionarse desde el catálogo maestro e indicar cantidad por servicio.
 - Al editar un modelo de equipo instalado aparece **Materiales automáticos para este equipo**. Allí se busca el material por código o nombre y se ingresa la cantidad por equipo instalado. Cantidad vacía o `0` no se guarda.
 
 ## Dónde editar qué
@@ -71,7 +75,7 @@ README.md
   - Render de selects/tablas, modal de drops.
   - `getEquipoKey()` genera la clave exacta `MEDIO::TIPO::MODELO` para vincular materiales a modelos instalados.
   - `calcularMaterialesAutomaticosPorEquiposInstalados()` lee `materialesAutomaticosPorEquipo`, revisa equipos instalados con serie y devuelve materiales automáticos recalculados desde cero.
-  - `consolidarMateriales()` une materiales manuales y automáticos por código o nombre para evitar duplicados.
+  - `consolidarMateriales()` une materiales manuales y automáticos por `materialId`, código o nombre para evitar duplicados.
 - **Excel**: `src/logic/excel.js`
   - Carga y limpieza del libro Excel (usa `XLSX` CDN).
 
