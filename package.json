@@ -10,6 +10,20 @@
     "build": "electron-builder --win",
     "dist": "electron-builder"
   },
+  "build": {
+    "files": [
+      "app/**/*",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "!dist/**/*",
+      "!build/**/*",
+      "!out/**/*",
+      "!*.exe",
+      "!*.zip",
+      "!*.7z"
+    ]
+  },
   "devDependencies": {
     "electron": "^38.2.2",
     "electron-builder": "^26.0.12",

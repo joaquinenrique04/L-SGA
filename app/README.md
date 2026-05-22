@@ -96,6 +96,12 @@ Si migras a ES Modules (imports en lugar de `window.*`):
 - Cambia `<script src="script.js">` por `<script type="module" src="script.js">` y exporta/importa desde `src/*`.
 - Sirve con un server local (ej.: `python -m http.server 8000` → `http://localhost:8000/`).
 
+## Empaquetado del .exe
+
+- El instalador se genera con `npm run dist` usando Electron Builder.
+- La configuración `build.files` de `package.json` incluye solo la app, `main.js`, `preload.js` y `package.json`.
+- Se excluyen `dist`, `build`, `out`, instaladores y comprimidos para evitar que builds anteriores entren dentro del nuevo `.exe`.
+
 ## Licencia
 
 Uso interno del proyecto. Ajusta según tus necesidades.
