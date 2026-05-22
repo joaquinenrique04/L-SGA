@@ -40,11 +40,13 @@ README.md
 
 1. Abre **`index.html`**.
 2. En “Cargar archivo Excel”, selecciona un `.xlsx`/`.xls`. Se toma la **primera hoja**.
-3. Elige **Medio**, **Categoría**, **Servicio** y los **equipos** (instalados/retirados).  
+3. En “Buscar por SOT”, escribe el número de SOT y pulsa **Buscar** para cargar los datos encontrados en el Excel.
+   - Al buscar una nueva SOT, la app limpia automáticamente las series usadas en la SOT anterior para evitar que queden equipos instalados o retirados mezclados.
+4. Elige **Medio**, **Categoría**, **Servicio** y los **equipos** (instalados/retirados).  
    - Al elegir equipos instalados, la carta añade “**Equipos instalados**” debajo de la línea de asteriscos.
    - Si agregas retirados, añade “**Equipos retirados**” **después** del bloque de **MATERIALES**.
-4. Usa **“Copiar texto”** para copiar la carta.
-5. **“Borrar archivo”** limpia el Excel cargado y campos relacionados.
+5. Usa **“Copiar texto”** para copiar la carta.
+6. **“Borrar archivo”** limpia el Excel cargado y campos relacionados.
 
 ### Panel de administración
 
@@ -62,6 +64,7 @@ README.md
   - `materiales-servicio.js` → materiales por servicio (bloque *** MATERIALES ***).
 - **Lógica**: `src/logic/state.js`
   - Normalización de servicio, filtros, integración de personalizados.
+  - Búsqueda por SOT y limpieza de series anteriores antes de aplicar una nueva SOT.
 - **UI**: `src/ui/render.js` y `src/ui/modal-drops.js`
   - Render de selects/tablas, modal de drops.
 - **Excel**: `src/logic/excel.js`
