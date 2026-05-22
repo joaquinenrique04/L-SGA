@@ -212,6 +212,73 @@
 
     <hr />
 
+    <h2>Reglas de materiales automáticos por equipo</h2>
+
+    <label for="reglaTipoEquipoSelect">Tipo de equipo:</label>
+    <select id="reglaTipoEquipoSelect">
+      <option value="">-- Selecciona tipo --</option>
+      <option value="equipo">Equipo</option>
+      <option value="deco">Deco</option>
+      <option value="repetidor">Repetidor</option>
+    </select>
+
+    <label for="reglaMedioSelect">Medio:</label>
+    <select id="reglaMedioSelect">
+      <option value="ambos">Ambos</option>
+      <option value="hfc">HFC</option>
+      <option value="ftth">FTTH</option>
+    </select>
+
+    <label for="reglaCondicionInput">Condición del modelo:</label>
+    <input type="text" id="reglaCondicionInput" placeholder="Ejemplo: IPTV, REPETIDOR, MTA" />
+
+    <label for="reglaExclusionInput">Excluir si contiene:</label>
+    <input type="text" id="reglaExclusionInput" placeholder="Ejemplo: RCU (opcional)" />
+
+    <label for="reglaMaterialInput">Material automático:</label>
+    <input type="text" id="reglaMaterialInput" placeholder="Ejemplo: CONTROL AMCO" />
+
+    <label for="reglaCodigoInput">Código de material:</label>
+    <input type="text" id="reglaCodigoInput" placeholder="Opcional" />
+
+    <label for="reglaCantidadInput">Cantidad por equipo:</label>
+    <input type="number" id="reglaCantidadInput" min="1" step="1" value="1" />
+
+    <label for="reglaActivoSelect">Estado:</label>
+    <select id="reglaActivoSelect">
+      <option value="true">Activo</option>
+      <option value="false">Inactivo</option>
+    </select>
+
+    <input type="hidden" id="editReglaIndex" value="-1" />
+
+    <div class="row-actions">
+      <button type="button" id="saveReglaButton">Guardar Regla</button>
+      <button type="button" id="clearReglaButton">Limpiar Formulario</button>
+    </div>
+
+    <div class="section-title">Reglas Registradas</div>
+    <div class="table-scroll">
+      <table id="tablaReglasMateriales">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tipo de equipo</th>
+            <th>Medio</th>
+            <th>Condición</th>
+            <th>Exclusión</th>
+            <th>Material</th>
+            <th>Cantidad</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <hr />
+
     <h2>Administrar Equipos Retirados</h2>
 
     <label for="medioRetSelect">Medio:</label>

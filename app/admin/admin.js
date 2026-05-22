@@ -186,6 +186,165 @@ document.addEventListener('DOMContentLoaded', () => {
     poblarFiltrosEquipos();
   });
 
+  /* ===================== REGLAS DE MATERIALES AUTOMATICOS ===================== */
+  const REGLAS_MATERIALES_KEY = 'reglasMaterialesPorEquipo';
+  const reglaTipoEquipoSelect = $('reglaTipoEquipoSelect');
+  const reglaMedioSelect      = $('reglaMedioSelect');
+  const reglaCondicionInput   = $('reglaCondicionInput');
+  const reglaExclusionInput   = $('reglaExclusionInput');
+  const reglaMaterialInput    = $('reglaMaterialInput');
+  const reglaCodigoInput      = $('reglaCodigoInput');
+  const reglaCantidadInput    = $('reglaCantidadInput');
+  const reglaActivoSelect     = $('reglaActivoSelect');
+  const editReglaIndexInput   = $('editReglaIndex');
+  const saveReglaButton       = $('saveReglaButton');
+  const clearReglaButton      = $('clearReglaButton');
+  const tablaReglasBody       = document.querySelector('#tablaReglasMateriales tbody');
+
+  function readReglasMateriales(){
+    return readLS(REGLAS_MATERIALES_KEY);
+  }
+
+  function writeReglasMateriales(arr){
+    writeLS(REGLAS_MATERIALES_KEY, arr);
+  }
+
+  function limpiarFormularioRegla(){
+    if (reglaTipoEquipoSelect) reglaTipoEquipoSelect.value = '';
+    if (reglaMedioSelect) reglaMedioSelect.value = 'ambos';
+    if (reglaCondicionInput) reglaCondicionInput.value = '';
+    if (reglaExclusionInput) reglaExclusionInput.value = '';
+    if (reglaMaterialInput) reglaMaterialInput.value = '';
+    if (reglaCodigoInput) reglaCodigoInput.value = '';
+    if (reglaCantidadInput) reglaCantidadInput.value = '1';
+    if (reglaActivoSelect) reglaActivoSelect.value = 'true';
+    if (editReglaIndexInput) editReglaIndexInput.value = '-1';
+    if (saveReglaButton) saveReglaButton.textContent = 'Guardar Regla';
+  }
+
+  function validarReglaMaterial(regla){
+    if (!regla.tipoEquipo) return 'Debes seleccionar el tipo de equipo.';
+    if (!regla.condicionModelo) return 'Debes escribir la condición del modelo.';
+    if (!regla.nombreMaterial) return 'Debes escribir el material automático.';
+    if (!Number.isInteger(regla.cantidadPorEquipo) || regla.cantidadPorEquipo <= 0) {
+      return 'La cantidad por equipo debe ser un número entero mayor a 0.';
+    }
+    return '';
+  }
+
+  function renderizarReglasMateriales(){
+    if (!tablaReglasBody) return;
+    const reglas = readReglasMateriales();
+    tablaReglasBody.innerHTML = '';
+    if (!reglas.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 9;
+      td.style.textAlign = 'center';
+      td.textContent = 'No hay reglas de materiales automáticos registradas.';
+      tr.appendChild(td);
+      tablaReglasBody.appendChild(tr);
+      return;
+    }
+
+    reglas.forEach((regla, idx) => {
+      const tr = document.createElement('tr');
+      const c = (text) => {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      };
+      c(idx + 1);
+      c(up(regla.tipoEquipo));
+      c(up(regla.medio || 'ambos'));
+      c(regla.condicionModelo || '');
+      c(regla.excluirSiContiene || '');
+      c(`${regla.codigoMaterial ? `${regla.codigoMaterial} - ` : ''}${regla.nombreMaterial || ''}`);
+      c(String(regla.cantidadPorEquipo || 0));
+      c(regla.activo === false ? 'Inactivo' : 'Activo');
+
+      const tdAcc = document.createElement('td');
+      const bE = document.createElement('button');
+      bE.textContent = 'Editar';
+      bE.className = 'acciones-btn';
+      bE.onclick = () => {
+        reglaTipoEquipoSelect.value = low(regla.tipoEquipo);
+        reglaMedioSelect.value = low(regla.medio || 'ambos');
+        reglaCondicionInput.value = regla.condicionModelo || '';
+        reglaExclusionInput.value = regla.excluirSiContiene || '';
+        reglaMaterialInput.value = regla.nombreMaterial || '';
+        reglaCodigoInput.value = regla.codigoMaterial || '';
+        reglaCantidadInput.value = String(regla.cantidadPorEquipo || 1);
+        reglaActivoSelect.value = regla.activo === false ? 'false' : 'true';
+        editReglaIndexInput.value = String(idx);
+        saveReglaButton.textContent = 'Actualizar Regla';
+      };
+
+      const bD = document.createElement('button');
+      bD.textContent = 'Eliminar';
+      bD.className = 'acciones-btn eliminar';
+      bD.onclick = () => {
+        if (!confirm('¿Eliminar esta regla de materiales automáticos?')) return;
+        const arr = readReglasMateriales();
+        arr.splice(idx, 1);
+        writeReglasMateriales(arr);
+        limpiarFormularioRegla();
+        renderizarReglasMateriales();
+      };
+
+      const bT = document.createElement('button');
+      bT.textContent = regla.activo === false ? 'Activar' : 'Desactivar';
+      bT.className = 'acciones-btn';
+      bT.onclick = () => {
+        const arr = readReglasMateriales();
+        if (!arr[idx]) return;
+        arr[idx].activo = arr[idx].activo === false;
+        writeReglasMateriales(arr);
+        renderizarReglasMateriales();
+      };
+
+      tdAcc.append(bE, bD, bT);
+      tr.appendChild(tdAcc);
+      tablaReglasBody.appendChild(tr);
+    });
+  }
+
+  saveReglaButton?.addEventListener('click', () => {
+    // Administracion de reglas guardadas en localStorage.reglasMaterialesPorEquipo.
+    const cantidad = parseInt(reglaCantidadInput?.value || '0', 10);
+    const regla = {
+      id: '',
+      tipoEquipo: low(reglaTipoEquipoSelect?.value),
+      medio: low(reglaMedioSelect?.value || 'ambos'),
+      condicionModelo: norm(reglaCondicionInput?.value),
+      excluirSiContiene: norm(reglaExclusionInput?.value),
+      codigoMaterial: norm(reglaCodigoInput?.value),
+      nombreMaterial: norm(reglaMaterialInput?.value),
+      cantidadPorEquipo: cantidad,
+      activo: reglaActivoSelect?.value !== 'false'
+    };
+
+    const error = validarReglaMaterial(regla);
+    if (error) { alert(error); return; }
+
+    const arr = readReglasMateriales();
+    const idx = parseInt(editReglaIndexInput?.value || '-1', 10);
+    if (idx >= 0 && arr[idx]) {
+      regla.id = arr[idx].id || `regla_${Date.now()}`;
+      arr[idx] = regla;
+      saveReglaButton.textContent = 'Guardar Regla';
+    } else {
+      regla.id = `regla_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      arr.push(regla);
+    }
+
+    writeReglasMateriales(arr);
+    limpiarFormularioRegla();
+    renderizarReglasMateriales();
+  });
+
+  clearReglaButton?.addEventListener('click', limpiarFormularioRegla);
+
   /* -------- RETIRADOS (usa mismo catálogo) -------- */
   const medioRetSelect = $('medioRetSelect');
   const tipoRetSelect  = $('tipoRetSelect');
@@ -424,12 +583,14 @@ document.addEventListener('DOMContentLoaded', () => {
   poblarFiltrosServicios();
   renderizarEquipos();
   poblarFiltrosEquipos();
+  renderizarReglasMateriales();
   renderizarRetirados();
   poblarFiltrosRetirados();
 
   // Exponer funciones para importaciones
   window.renderizarServicios = renderizarServicios;
   window.renderizarEquipos = renderizarEquipos;
+  window.renderizarReglasMateriales = renderizarReglasMateriales;
   window.renderizarRetirados = renderizarRetirados;
   window.poblarFiltrosServicios = poblarFiltrosServicios;
   window.poblarFiltrosEquipos = poblarFiltrosEquipos;

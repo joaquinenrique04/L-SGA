@@ -2,6 +2,158 @@
 function marcarBoton(idBtn)   { document.getElementById(idBtn)?.classList.add('active'); }
 function desmarcarBoton(idBtn){ document.getElementById(idBtn)?.classList.remove('active'); }
 
+const REGLAS_MATERIALES_DEFAULT = [
+  {
+    id: 'regla_default_iptv',
+    tipoEquipo: 'deco',
+    medio: 'ambos',
+    condicionModelo: 'IPTV',
+    excluirSiContiene: 'RCU',
+    codigoMaterial: '',
+    nombreMaterial: 'CONTROL AMCO',
+    cantidadPorEquipo: 1,
+    activo: true
+  },
+  {
+    id: 'regla_default_repetidor',
+    tipoEquipo: 'repetidor',
+    medio: 'ambos',
+    condicionModelo: 'REPETIDOR',
+    excluirSiContiene: '',
+    codigoMaterial: '',
+    nombreMaterial: 'CONECTOR RJ45',
+    cantidadPorEquipo: 2,
+    activo: true
+  }
+];
+
+function normalizarTextoMaterial(valor) {
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+}
+
+function leerReglasMaterialesPorEquipo() {
+  // Las reglas se leen desde localStorage.reglasMaterialesPorEquipo; si la clave no existe se usan defaults.
+  try {
+    const raw = localStorage.getItem('reglasMaterialesPorEquipo');
+    if (raw === null) return REGLAS_MATERIALES_DEFAULT.slice();
+    const reglas = JSON.parse(raw || '[]');
+    return Array.isArray(reglas) ? reglas : [];
+  } catch {
+    return REGLAS_MATERIALES_DEFAULT.slice();
+  }
+}
+
+function parsearMaterialManual(linea) {
+  const texto = String(linea || '').trim();
+  if (!texto) return null;
+
+  const cantidadMatch = texto.match(/\s*(?::|x)\s*(\d+)\s*(?:\[.*\])?$/i);
+  const cantidad = cantidadMatch ? parseInt(cantidadMatch[1], 10) : 1;
+  const sinCantidad = cantidadMatch ? texto.slice(0, cantidadMatch.index).trim() : texto;
+  const codeMatch = sinCantidad.match(/^(\d{5,})\s*-\s*(.+)$/);
+
+  return {
+    codigoMaterial: codeMatch ? codeMatch[1].trim() : '',
+    nombreMaterial: codeMatch ? codeMatch[2].trim() : sinCantidad,
+    cantidad,
+    automatico: false
+  };
+}
+
+function formatearMaterial(material) {
+  const codigo = String(material.codigoMaterial || '').trim();
+  const nombre = String(material.nombreMaterial || '').trim();
+  const cantidad = Number.isFinite(material.cantidad) ? material.cantidad : 1;
+  const base = codigo ? `${codigo} - ${nombre}` : nombre;
+  const sufijo = material.automatico ? ' [Automático]' : '';
+  return `${base} x ${cantidad}${sufijo}`;
+}
+
+function consolidarMateriales(materiales) {
+  // Combina materiales manuales y automaticos por codigo, o por nombre si no existe codigo.
+  const map = new Map();
+  (materiales || []).forEach(item => {
+    if (!item) return;
+    const codigo = String(item.codigoMaterial || '').trim();
+    const nombre = String(item.nombreMaterial || '').trim();
+    if (!codigo && !nombre) return;
+
+    const key = codigo ? `codigo:${normalizarTextoMaterial(codigo)}` : `nombre:${normalizarTextoMaterial(nombre)}`;
+    const cantidad = parseInt(item.cantidad ?? item.cantidadPorEquipo ?? 1, 10);
+    const safeCantidad = Number.isInteger(cantidad) && cantidad > 0 ? cantidad : 1;
+    if (!map.has(key)) {
+      map.set(key, {
+        codigoMaterial: codigo,
+        nombreMaterial: nombre,
+        cantidad: 0,
+        automatico: false
+      });
+    }
+    const actual = map.get(key);
+    actual.cantidad += safeCantidad;
+    actual.automatico = actual.automatico || item.automatico === true;
+    if (!actual.codigoMaterial && codigo) actual.codigoMaterial = codigo;
+    if (!actual.nombreMaterial && nombre) actual.nombreMaterial = nombre;
+  });
+  return Array.from(map.values());
+}
+
+function contarSeries(ids) {
+  return ids
+    .map(id => document.getElementById(id)?.value?.trim() || '')
+    .filter(Boolean).length;
+}
+
+function calcularMaterialesAutomaticosPorReglas() {
+  // Aplica las reglas activas a los equipos instalados seleccionados y recalcula desde cero cada vez.
+  const reglas = leerReglasMaterialesPorEquipo()
+    .filter(regla => regla && regla.activo !== false);
+  const medio = String(typeof medioActual !== 'undefined' ? medioActual : '').toLowerCase();
+  const equipos = [
+    {
+      tipoEquipo: 'equipo',
+      modelo: document.getElementById('equipo')?.value || '',
+      cantidad: document.getElementById('serieMta')?.value?.trim() ? 1 : 0
+    },
+    {
+      tipoEquipo: 'deco',
+      modelo: document.getElementById('deco')?.value || '',
+      cantidad: contarSeries(['serieDeco1', 'serieDeco2', 'serieDeco3', 'serieDeco4', 'serieDeco5'])
+    },
+    {
+      tipoEquipo: 'repetidor',
+      modelo: document.getElementById('repetidor')?.value || '',
+      cantidad: contarSeries(['serieRep1', 'serieRep2'])
+    }
+  ];
+
+  const materiales = [];
+  equipos.forEach(equipo => {
+    if (!equipo.modelo || equipo.cantidad <= 0) return;
+    const modeloNormalizado = normalizarTextoMaterial(equipo.modelo);
+    reglas.forEach(regla => {
+      if (String(regla.tipoEquipo || '').toLowerCase() !== equipo.tipoEquipo) return;
+      const reglaMedio = String(regla.medio || 'ambos').toLowerCase();
+      if (reglaMedio !== 'ambos' && reglaMedio !== medio) return;
+
+      const condicion = normalizarTextoMaterial(regla.condicionModelo);
+      const exclusion = normalizarTextoMaterial(regla.excluirSiContiene);
+      if (!condicion || !modeloNormalizado.includes(condicion)) return;
+      if (exclusion && modeloNormalizado.includes(exclusion)) return;
+
+      const cantidadPorEquipo = parseInt(regla.cantidadPorEquipo, 10);
+      materiales.push({
+        codigoMaterial: String(regla.codigoMaterial || '').trim(),
+        nombreMaterial: String(regla.nombreMaterial || '').trim(),
+        cantidad: equipo.cantidad * (Number.isInteger(cantidadPorEquipo) && cantidadPorEquipo > 0 ? cantidadPorEquipo : 1),
+        automatico: true
+      });
+    });
+  });
+
+  return materiales;
+}
+
 function actualizarTexto() {
   // N° ACTA ← SOT (robusto: numSot / sot / name="sot")
   const sot      = (document.querySelector('#numSot, #sot, input[name="sot"]')?.value || '').trim();
@@ -139,14 +291,18 @@ ${lineasEquipos.trim()}`;
 
   // Materiales (si aplica y checkbox activado)
   const chkMateriales = document.getElementById('chkMateriales');
-  if (chkMateriales && chkMateriales.checked) {
-    const materiales = obtenerMateriales(servicio);
-    if (Array.isArray(materiales) && materiales.length) {
-      textoFinal += `
+  // Los materiales manuales vienen del servicio; los automaticos vienen de reglas por equipo.
+  const materialesManuales = (chkMateriales && chkMateriales.checked ? (obtenerMateriales(servicio) || []) : [])
+    .map(parsearMaterialManual)
+    .filter(Boolean);
+  const materialesAutomaticos = calcularMaterialesAutomaticosPorReglas();
+  const materiales = consolidarMateriales([...materialesManuales, ...materialesAutomaticos])
+    .map(formatearMaterial);
+  if (materiales.length) {
+    textoFinal += `
 
 ***   MATERIALES  ***
 ${materiales.join('\n')}`;
-    }
   }
 
   // Al final del texto: equipos retirados (si hay)
@@ -306,6 +462,8 @@ function toggleMateriales(activado) {
 window.marcarBoton = marcarBoton;
 window.desmarcarBoton = desmarcarBoton;
 window.actualizarTexto = actualizarTexto;
+window.calcularMaterialesAutomaticosPorReglas = calcularMaterialesAutomaticosPorReglas;
+window.consolidarMateriales = consolidarMateriales;
 window.copiarTexto = copiarTexto;
 window.limpiarCampos = limpiarCampos;
 window.actualizarVisibilidadBtnDrops = actualizarVisibilidadBtnDrops;
