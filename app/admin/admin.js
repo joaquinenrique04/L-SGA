@@ -10,6 +10,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const low  = (s)=>norm(s).toLowerCase();
   const up   = (s)=>norm(s).toUpperCase();
 
+  // Navegacion visual del administrador: solo cambia pestañas, no toca datos ni localStorage.
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+      document.querySelector(`#tab-${tab}`)?.classList.add('active');
+    });
+  });
+
   function readLS(key){
     try{ const raw=localStorage.getItem(key); const arr=raw?JSON.parse(raw):[]; return Array.isArray(arr)?arr:[]; }
     catch{ return []; }

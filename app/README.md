@@ -51,6 +51,7 @@ README.md
 ### Panel de administración
 
 - Abre **`admin.html`** para gestionar cuatro listas principales: **Servicios**, **Equipos instalados**, **Equipos retirados** y **Materiales**.
+- El administrador usa pestañas para mostrar una lista a la vez y reducir el desplazamiento vertical.
 - Se guardan en `localStorage`:
   - `customServices`: `{ medio, categoria, servicio, materiales: [...] }`
   - `customEquipos`: equipos instalados personalizados.
