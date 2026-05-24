@@ -2,31 +2,27 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Buscar y mostrar datos</title>
+  <title>L-SGA</title>
   <link rel="stylesheet" href="styles/base.css" />
   <link rel="stylesheet" href="styles/components.css" />
+  <link rel="stylesheet" href="styles.css" />
+
   <!-- XLSX.js para leer Excel -->
   <script src="vendor/xlsx.full.min.js"></script>
 
-  
   <script src="src/data/categorias-servicio.js"></script>
   <script src="src/data/equipos-data.js"></script>
   <script src="src/data/materiales-servicio.js"></script>
   <script src="src/data/globals-alias.js"></script>
-
   <script src="src/data/custom-services.bundle.js"></script>
-  
+
   <script src="src/logic/excel.js"></script>
   <script src="src/logic/license.js"></script>
   <script src="src/logic/state.js"></script>
   <script src="src/ui/render.js"></script>
-
   <script src="src/ui/modal-drops.js"></script>
   <script src="script.js"></script>
-
   <script src="index-retirados-bridge.js"></script>
-
-
 </head>
 <body class="index">
   <div id="activationGate" class="activation-gate hidden">
@@ -51,200 +47,227 @@
     </div>
   </div>
 
-  <div id="appShell" class="hidden">
-  <div class="formulario">
-    <div class="screen-header">
+  <div id="appShell" class="hidden app-shell">
+    <header class="app-header">
       <div>
-        <h1 class="screen-title">Liquidación SOT</h1>
-        <p class="screen-subtitle">Carga la base y genera el texto.</p>
+        <h1>L-SGA</h1>
+        <p>Sistema de generación de actas y liquidaciones</p>
       </div>
-    </div>
+      <a href="admin.html" class="btn btn-secondary">Administrador</a>
+    </header>
 
-    <div class="form-scroll-area">
-
-    <h2>Cargar archivo Excel</h2>
-    <input type="file" id="inputExcel" accept=".xlsx,.xls" />
-    <button type="button" onclick="borrarArchivo()">Borrar archivo</button>
-    <small id="excelStatus" style="display:block;margin-top:6px;color:#a00">Sin base cargada</small>
-
-
-    <h2>Buscar por SOT</h2>
-    <label for="numSot">N° de SOT:</label>
-    <input type="text" id="numSot" name="sot" />
-    <div>
-      <button type="button" onclick="buscarDatos()">Buscar</button>
-      <button type="button" onclick="limpiarCampos()">Limpiar</button>
-    </div>
-
-    <form>
-      <label>Fecha:</label>
-      <input type="text" id="fecha" />
-      <label>Hora:</label>
-      <input type="text" id="hora" />
-      <label>Cintillo:</label>
-      <input type="text" id="cintillo" />
-      <label>Técnico:</label>
-      <input type="text" id="tecnico" />
-
-      <hr style="margin:12px 0;" />
-
-      <!-- Botones HFC / FTTH -->
-      <div class="boton-grupo">
-        <button type="button" id="btnHFC"  onclick="cambiarMedio('hfc')">HFC <span id="checkHFC"  class="check-icon">✔</span></button>
-        <button type="button" id="btnFTTH" onclick="cambiarMedio('ftth')">FTTH <span id="checkFTTH" class="check-icon">✔</span></button>
-      </div>
-
-      <label>Servicio:</label><br />
-      <div class="boton-grupo">
-        <button type="button" id="btnInstalacion"   onclick="cambiarCategoria('instalacion')">Instalación <span id="checkInstalacion" class="check-icon">✔</span></button>
-        <button type="button" id="btnMantenimiento" onclick="cambiarCategoria('mantenimiento')">Mantenimiento <span id="checkMantenimiento" class="check-icon">✔</span></button>
-        <button type="button" id="btnPostventa"     onclick="cambiarCategoria('postventa')">Postventa <span id="checkPostventa" class="check-icon">✔</span></button>
-      </div>
-
-      <!-- Buscador / mantenimiento -->
-      <div id="maintenanceCodesPanel" class="maintenance-codes-panel hidden">
-        <div class="maintenance-code-row">
-          <input id="buscadorServicio" type="text" list="datalistServicios" placeholder="Buscar servicio..."
-                 class="maintenance-main-code" onchange="actualizarTexto()" />
-          <button type="button" id="btnAddMaintenanceCode" class="maintenance-icon-button" onclick="agregarCodigoMantenimiento()" title="Agregar código">+</button>
-          <button type="button" id="btnRemoveMaintenanceCode" class="maintenance-icon-button hidden" onclick="quitarCodigoMantenimiento()" title="Quitar último">-</button>
-        </div>
-        <input id="buscadorServicioExtra1" class="maintenance-extra-code hidden" type="text" list="datalistServicios" placeholder="Buscar servicio..." oninput="actualizarTexto()" onchange="actualizarTexto()" />
-        <input id="buscadorServicioExtra2" class="maintenance-extra-code hidden" type="text" list="datalistServicios" placeholder="Buscar servicio..." oninput="actualizarTexto()" onchange="actualizarTexto()" />
-      </div>
-      <datalist id="datalistServicios"></datalist>
-
-      <!-- Select para instalación / postventa -->
-      <select id="servicio" onchange="actualizarTexto()">
-        <option value="">-- Selecciona un servicio --</option>
-      </select>
-
-      <hr style="margin:12px 0;" />
-
-
-      <!-- ===========================================================
-           DOS COLUMNAS: INSTALADOS (izq)  |  RETIRADOS (der)
-           =========================================================== -->
-      <div class="equipos-dos-col">
-        <!-- Columna: Equipos instalados -->
-        <div class="equipos-box">
-          <h4>Equipos instalados</h4>
-
-          <label id="lblEquipoPrincipal">Equipo MTA:</label>
-          <select id="equipo" onchange="actualizarTexto()">
-            <option value="">-- Selecciona un equipo MTA --</option>
-          </select>
-
-          <label id="lblSeriePrincipal">Serie MTA:</label>
-          <div class="serie-grupo">
-            <input type="text" id="serieMta" oninput="actualizarTexto()" size="10" />
-            <span id="iconoAlertaMta" class="icono-alerta" style="display:none;">❗</span>
+    <main class="main-layout">
+      <section class="panel-card form-panel">
+        <div class="section-card">
+          <h2 class="section-title">Archivo y búsqueda</h2>
+          <div class="form-grid">
+            <div class="form-field form-field-wide">
+              <label for="inputExcel">Archivo Excel</label>
+              <input type="file" id="inputExcel" accept=".xlsx,.xls" />
+              <small id="excelStatus" class="status-text">Sin base cargada</small>
+            </div>
+            <div class="form-field">
+              <label for="numSot">N° de SOT</label>
+              <input type="text" id="numSot" name="sot" />
+            </div>
           </div>
-
-          <label id="lblDecoPrincipal">Decodificador:</label>
-          <select id="deco" onchange="actualizarTexto()">
-            <option value="">-- Selecciona un decodificador --</option>
-          </select>
-
-          <label>Series Decos:</label>
-          <div class="serie-grupo">
-            <input type="text" id="serieDeco1" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="serieDeco2" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="serieDeco3" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="serieDeco4" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="serieDeco5" oninput="actualizarTexto()" size="5" />
-            <span id="iconoAlertaDeco" class="icono-alerta" style="display:none;">❗</span>
-          </div>
-
-          <label>Repetidor:</label>
-          <select id="repetidor" onchange="actualizarTexto()">
-            <option value="">-- Selecciona un repetidor --</option>
-          </select>
-
-          <label>Series Rep.:</label>
-          <div class="serie-grupo">
-            <input type="text" id="serieRep1" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="serieRep2" oninput="actualizarTexto()" size="5" />
-            <span id="iconoAlertaRep" class="icono-alerta" style="display:none;">❗</span>
+          <div class="button-row">
+            <button type="button" class="btn btn-primary" onclick="buscarDatos()">Buscar</button>
+            <button type="button" class="btn btn-secondary" onclick="limpiarCampos()">Limpiar</button>
+            <button type="button" class="btn btn-secondary" onclick="borrarArchivo()">Borrar archivo</button>
           </div>
         </div>
 
-        <!-- Columna: Equipos retirados (compacta) -->
-        <div class="equipos-box compact">
-          <h4>Equipos retirados</h4>
-
-          <label id="lblRetEq">Equipo retirado (MTA/Router):</label>
-          <select id="retEq" onchange="actualizarTexto()">
-            <option value="">-- Selecciona equipo retirado --</option>
-          </select>
-
-          <label>Serie equipo retirado:</label>
-          <input type="text" id="retSerieEq" oninput="actualizarTexto()" />
-
-          <label id="lblRetDeco">Decodificador/IPTV retirado:</label>
-          <select id="retDeco" onchange="actualizarTexto()">
-            <option value="">-- Selecciona decodificador/IPTV retirado --</option>
-          </select>
-
-          <label>Series decos retirados:</label>
-          <div class="serie-grupo">
-            <input type="text" id="retSerieDeco1" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="retSerieDeco2" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="retSerieDeco3" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="retSerieDeco4" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="retSerieDeco5" oninput="actualizarTexto()" size="5" />
+        <form>
+          <div class="section-card">
+            <h2 class="section-title">Datos principales</h2>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="fecha">Fecha</label>
+                <input type="text" id="fecha" />
+              </div>
+              <div class="form-field">
+                <label for="hora">Hora</label>
+                <input type="text" id="hora" />
+              </div>
+              <div class="form-field">
+                <label for="cintillo">Cintillo</label>
+                <input type="text" id="cintillo" />
+              </div>
+              <div class="form-field">
+                <label for="tecnico">Técnico</label>
+                <input type="text" id="tecnico" />
+              </div>
+            </div>
           </div>
 
-          <label>Repetidor retirado:</label>
-          <select id="retRep" onchange="actualizarTexto()">
-            <option value="">-- Selecciona un repetidor retirado --</option>
-          </select>
+          <div class="section-card">
+            <h2 class="section-title">Servicio</h2>
+            <div class="button-row compact-actions">
+              <button type="button" id="btnHFC" class="btn btn-toggle" onclick="cambiarMedio('hfc')">HFC <span id="checkHFC" class="check-icon">✔</span></button>
+              <button type="button" id="btnFTTH" class="btn btn-toggle" onclick="cambiarMedio('ftth')">FTTH <span id="checkFTTH" class="check-icon">✔</span></button>
+            </div>
 
-          <label>Series Rep. retirado:</label>
-          <div class="serie-grupo">
-            <input type="text" id="retSerieRep1" oninput="actualizarTexto()" size="5" />
-            <input type="text" id="retSerieRep2" oninput="actualizarTexto()" size="5" />
+            <div class="button-row compact-actions">
+              <button type="button" id="btnInstalacion" class="btn btn-toggle" onclick="cambiarCategoria('instalacion')">Instalación <span id="checkInstalacion" class="check-icon">✔</span></button>
+              <button type="button" id="btnMantenimiento" class="btn btn-toggle" onclick="cambiarCategoria('mantenimiento')">Mantenimiento <span id="checkMantenimiento" class="check-icon">✔</span></button>
+              <button type="button" id="btnPostventa" class="btn btn-toggle" onclick="cambiarCategoria('postventa')">Postventa <span id="checkPostventa" class="check-icon">✔</span></button>
+            </div>
+
+            <div id="maintenanceCodesPanel" class="maintenance-codes-panel hidden">
+              <div class="maintenance-code-row">
+                <input id="buscadorServicio" type="text" list="datalistServicios" placeholder="Buscar servicio..."
+                       class="maintenance-main-code" onchange="actualizarTexto()" />
+                <button type="button" id="btnAddMaintenanceCode" class="maintenance-icon-button" onclick="agregarCodigoMantenimiento()" title="Agregar código">+</button>
+                <button type="button" id="btnRemoveMaintenanceCode" class="maintenance-icon-button hidden" onclick="quitarCodigoMantenimiento()" title="Quitar último">-</button>
+              </div>
+              <input id="buscadorServicioExtra1" class="maintenance-extra-code hidden" type="text" list="datalistServicios" placeholder="Buscar servicio..." oninput="actualizarTexto()" onchange="actualizarTexto()" />
+              <input id="buscadorServicioExtra2" class="maintenance-extra-code hidden" type="text" list="datalistServicios" placeholder="Buscar servicio..." oninput="actualizarTexto()" onchange="actualizarTexto()" />
+            </div>
+            <datalist id="datalistServicios"></datalist>
+
+            <div class="form-field">
+              <label for="servicio">Servicio seleccionado</label>
+              <select id="servicio" onchange="actualizarTexto()">
+                <option value="">-- Selecciona un servicio --</option>
+              </select>
+            </div>
           </div>
-        </div>
-      </div>
-      <!-- /dos columnas -->
 
-    </form>
-    </div>
-  </div>
+          <details class="accordion-card" open>
+            <summary>Equipos instalados</summary>
+            <div class="form-grid">
+              <div class="form-field">
+                <label id="lblEquipoPrincipal" for="equipo">Equipo MTA:</label>
+                <select id="equipo" onchange="actualizarTexto()">
+                  <option value="">-- Selecciona un equipo MTA --</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label id="lblSeriePrincipal" for="serieMta">Serie MTA:</label>
+                <div class="serie-grupo">
+                  <input type="text" id="serieMta" oninput="actualizarTexto()" size="10" />
+                  <span id="iconoAlertaMta" class="icono-alerta" style="display:none;">❗</span>
+                </div>
+              </div>
+              <div class="form-field form-field-wide">
+                <label id="lblDecoPrincipal" for="deco">Decodificador:</label>
+                <select id="deco" onchange="actualizarTexto()">
+                  <option value="">-- Selecciona un decodificador --</option>
+                </select>
+              </div>
+              <div class="form-field form-field-wide">
+                <label>Series Decos:</label>
+                <div class="serie-grupo multi-input">
+                  <input type="text" id="serieDeco1" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="serieDeco2" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="serieDeco3" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="serieDeco4" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="serieDeco5" oninput="actualizarTexto()" size="5" />
+                  <span id="iconoAlertaDeco" class="icono-alerta" style="display:none;">❗</span>
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="repetidor">Repetidor:</label>
+                <select id="repetidor" onchange="actualizarTexto()">
+                  <option value="">-- Selecciona un repetidor --</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Series Rep.:</label>
+                <div class="serie-grupo multi-input">
+                  <input type="text" id="serieRep1" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="serieRep2" oninput="actualizarTexto()" size="5" />
+                  <span id="iconoAlertaRep" class="icono-alerta" style="display:none;">❗</span>
+                </div>
+              </div>
+            </div>
+          </details>
 
-  <!-- Lado derecho: carta + drops -->
-  <div class="contenedor-salida">
-    <div class="preview-workspace">
-      <div class="preview-column">
-        <div class="preview-header">
-          <h2>Vista previa</h2>
-          <p>El texto se actualiza con cada cambio del formulario.</p>
+          <details class="accordion-card">
+            <summary>Equipos retirados</summary>
+            <div class="form-grid">
+              <div class="form-field">
+                <label id="lblRetEq" for="retEq">Equipo retirado (MTA/Router):</label>
+                <select id="retEq" onchange="actualizarTexto()">
+                  <option value="">-- Selecciona equipo retirado --</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="retSerieEq">Serie equipo retirado:</label>
+                <input type="text" id="retSerieEq" oninput="actualizarTexto()" />
+              </div>
+              <div class="form-field form-field-wide">
+                <label id="lblRetDeco" for="retDeco">Decodificador/IPTV retirado:</label>
+                <select id="retDeco" onchange="actualizarTexto()">
+                  <option value="">-- Selecciona decodificador/IPTV retirado --</option>
+                </select>
+              </div>
+              <div class="form-field form-field-wide">
+                <label>Series decos retirados:</label>
+                <div class="serie-grupo multi-input">
+                  <input type="text" id="retSerieDeco1" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="retSerieDeco2" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="retSerieDeco3" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="retSerieDeco4" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="retSerieDeco5" oninput="actualizarTexto()" size="5" />
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="retRep">Repetidor retirado:</label>
+                <select id="retRep" onchange="actualizarTexto()">
+                  <option value="">-- Selecciona un repetidor retirado --</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Series Rep. retirado:</label>
+                <div class="serie-grupo multi-input">
+                  <input type="text" id="retSerieRep1" oninput="actualizarTexto()" size="5" />
+                  <input type="text" id="retSerieRep2" oninput="actualizarTexto()" size="5" />
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="accordion-card" open>
+            <summary>Materiales</summary>
+            <div class="material-actions">
+              <label class="checkbox-row">
+                <input type="checkbox" id="chkMateriales" onchange="toggleMateriales(this.checked)" />
+                Activar materiales del servicio
+              </label>
+              <button type="button" id="btnListaDrops" class="btn btn-secondary hidden" onclick="abrirModalDrops()">Lista + Drops</button>
+            </div>
+          </details>
+        </form>
+      </section>
+
+      <aside class="panel-card preview-panel">
+        <div class="inline-actions">
+          <div>
+            <h2 class="section-title">Vista previa del acta</h2>
+            <span class="badge">Resultado generado</span>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="copiarTexto()">Copiar texto</button>
         </div>
-        <div class="contenedor-texto" contenteditable="true" id="textoSalida">
+
+        <div class="preview-box" contenteditable="true" id="textoSalida">
           Aquí se mostrará el contenido tipo carta...
         </div>
-        <button type="button" onclick="copiarTexto()">Copiar texto</button>
-        <span id="checkCopiado" style="display:none;color:green;font-weight:bold;margin-left:5px;">✔</span>
+        <span id="checkCopiado" class="copy-check" style="display:none;">✔ Copiado</span>
 
-        <div class="acciones-registro" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
-          <button type="button" onclick="registrarInstalados()">Registrar instalación</button>
-          <button type="button" onclick="descargarExcelDelDia()">Descargar Excel (hoy)</button>
-          <button type="button" onclick="descargarExcelCompleto()">Descargar Excel (todo)</button>
-          <button type="button" onclick="limpiarRegistroDelDia()">Limpiar registro (hoy)</button>
+        <div class="section-card action-card">
+          <h2 class="section-title">Acciones</h2>
+          <div class="button-row">
+            <button type="button" class="btn btn-success" onclick="registrarInstalados()">Registrar instalación</button>
+            <button type="button" class="btn btn-secondary" onclick="descargarExcelDelDia()">Descargar Excel (hoy)</button>
+            <button type="button" class="btn btn-secondary" onclick="descargarExcelCompleto()">Descargar Excel (todo)</button>
+            <button type="button" class="btn btn-danger" onclick="limpiarRegistroDelDia()">Limpiar registro (hoy)</button>
+          </div>
         </div>
+      </aside>
+    </main>
 
-        <button type="button" id="btnListaDrops" class="hidden" onclick="abrirModalDrops()">Lista + Drops</button>
-
-        <label style="margin-top:8px;display:block;">
-          <input type="checkbox" id="chkMateriales" onchange="toggleMateriales(this.checked)" /> Activar materiales
-        </label>
-
-        <a href="admin.html" class="button-link button-link-secondary preview-action-link">Administrar servicios</a>
-      </div>
-    </div>
-
-    <!-- Modal Drops -->
     <div id="modalDrops" class="modal hidden">
       <div class="modal-content">
         <div class="modal-header">
@@ -253,15 +276,12 @@
         </div>
         <div id="listaOpcionesDrops" class="lista-drops"></div>
         <div class="modal-footer">
-          <button type="button" id="btnAddDrops"    onclick="confirmarDrops()">Agregar</button>
-          <button type="button" id="btnClearDrops"  onclick="limpiarDrops()">Limpiar</button>
+          <button type="button" id="btnAddDrops" onclick="confirmarDrops()">Agregar</button>
+          <button type="button" id="btnClearDrops" onclick="limpiarDrops()">Limpiar</button>
           <button type="button" id="btnCancelDrops" onclick="cerrarModalDrops()">Cancelar</button>
         </div>
       </div>
     </div>
   </div>
-  </div>
-  
-
 </body>
 </html>

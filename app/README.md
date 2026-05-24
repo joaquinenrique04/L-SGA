@@ -48,6 +48,12 @@ README.md
 5. Usa **“Copiar texto”** para copiar la carta.
 6. **“Borrar archivo”** limpia el Excel cargado y campos relacionados.
 
+### Interfaz principal
+
+- `index.html` usa un diseño tipo dashboard operativo para pruebas visuales.
+- El formulario queda en la columna izquierda y la vista previa del acta queda fija en la columna derecha en pantallas grandes.
+- Los bloques largos de equipos instalados, retirados y materiales usan acordeones para reducir desplazamiento.
+
 ### Panel de administración
 
 - Abre **`admin.html`** para gestionar cuatro listas principales: **Servicios**, **Equipos instalados**, **Equipos retirados** y **Materiales**.
