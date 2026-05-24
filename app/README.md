@@ -53,6 +53,7 @@ README.md
 - `index.html` usa un diseño tipo dashboard operativo para pruebas visuales.
 - El formulario queda en la columna izquierda y la vista previa del acta queda fija en la columna derecha en pantallas grandes.
 - Los bloques largos de equipos instalados, retirados y materiales usan acordeones para reducir desplazamiento.
+- En **Archivo y búsqueda**, los botones de cargar/cambiar archivo y borrar archivo comparten una fila compacta con el estado de la base cargada.
 
 ### Panel de administración
 

@@ -146,6 +146,41 @@ body.index textarea:focus,
   font-weight: 700;
 }
 
+.file-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.file-input-hidden {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.file-toolbar .btn,
+.file-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.file-status {
+  font-size: 14px;
+  color: #334155;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .button-row,
 .compact-actions,
 .material-actions {
@@ -366,8 +401,12 @@ body.index .btn-secondary {
 }
 
 body.index .btn-danger {
-  background: #dc2626;
+  background: #ef4444;
   color: #fff;
+}
+
+body.index .btn-danger:hover {
+  background: #dc2626;
 }
 
 body.index .btn-success {

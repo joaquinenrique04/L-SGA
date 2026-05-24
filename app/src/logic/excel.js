@@ -51,14 +51,20 @@
 
   function renderExcelStatus() {
     const el = document.getElementById('excelStatus');
-    if (!el) return;
+    const btn = document.getElementById('btnCargarArchivo');
     if (SOT_DB && SOT_DB.length) {
       const dt = new Date(SOT_DB_META.loadedAt || Date.now());
-      el.textContent = `Base cargada: ${SOT_DB_META.fileName || 'sin nombre'} (${SOT_DB.length} filas) — ${dt.toLocaleString()}`;
-      el.style.color = 'green';
+      if (el) {
+        el.textContent = `Base cargada: ${SOT_DB_META.fileName || 'sin nombre'} (${SOT_DB.length} filas) - ${dt.toLocaleString()}`;
+        el.style.color = '#166534';
+      }
+      if (btn) btn.textContent = 'Cambiar archivo';
     } else {
-      el.textContent = 'Sin base cargada';
-      el.style.color = '#a00';
+      if (el) {
+        el.textContent = 'Ninguna base cargada';
+        el.style.color = '#334155';
+      }
+      if (btn) btn.textContent = 'Cargar archivo Excel';
     }
   }
 
@@ -140,6 +146,35 @@
     const key = normSOT(sot);
     if (!key || !window.sotIndex) return null;
     return window.sotIndex.get(key) || null;
+  };
+
+  window.borrarArchivo = async function borrarArchivo() {
+    SOT_DB = [];
+    SOT_DB_META = { fileName: '', rows: 0, loadedAt: '', colSOTName: '' };
+    window.datosExcel = [];
+    window.colSOT = null;
+    window.sotIndex = new Map();
+    localStorage.removeItem('sotDb');
+    localStorage.removeItem('sotDbMeta');
+
+    const inputExcel = document.getElementById('inputExcel');
+    if (inputExcel) inputExcel.value = '';
+
+    try {
+      if (window.desktop?.readData && window.desktop?.writeData) {
+        const current = await window.desktop.readData();
+        const { sotDb, sotDbMeta, ...rest } = current || {};
+        await window.desktop.writeData(rest);
+      }
+    } catch (e) {
+      console.warn('borrarArchivo disk cleanup error:', e);
+    }
+
+    renderExcelStatus();
+    syncExcelViewer();
+    if (typeof window.highlightExcelViewerRow === 'function') {
+      window.highlightExcelViewerRow('');
+    }
   };
 
   // ===================== Carga del Excel (input file) =====================

@@ -60,12 +60,13 @@
       <section class="panel-card form-panel">
         <div class="section-card">
           <h2 class="section-title">Archivo y búsqueda</h2>
+          <div class="file-toolbar">
+            <input type="file" id="inputExcel" class="file-input-hidden" accept=".xlsx,.xls" />
+            <label for="inputExcel" id="btnCargarArchivo" class="btn btn-primary file-button">Cargar archivo Excel</label>
+            <button type="button" id="btnBorrarArchivo" class="btn btn-danger" onclick="borrarArchivo()">Borrar archivo</button>
+            <span id="excelStatus" class="file-status">Ninguna base cargada</span>
+          </div>
           <div class="form-grid">
-            <div class="form-field form-field-wide">
-              <label for="inputExcel">Archivo Excel</label>
-              <input type="file" id="inputExcel" accept=".xlsx,.xls" />
-              <small id="excelStatus" class="status-text">Sin base cargada</small>
-            </div>
             <div class="form-field">
               <label for="numSot">N° de SOT</label>
               <input type="text" id="numSot" name="sot" />
@@ -74,7 +75,6 @@
           <div class="button-row">
             <button type="button" class="btn btn-primary" onclick="buscarDatos()">Buscar</button>
             <button type="button" class="btn btn-secondary" onclick="limpiarCampos()">Limpiar</button>
-            <button type="button" class="btn btn-secondary" onclick="borrarArchivo()">Borrar archivo</button>
           </div>
         </div>
 
